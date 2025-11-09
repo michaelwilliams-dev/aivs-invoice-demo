@@ -37,7 +37,7 @@ h1.page-title {
   padding-bottom:6px;
 }
 
-/* Labels and dropdowns */
+/* Labels */
 label {
   display:block;
   margin-top:12px;
@@ -45,13 +45,16 @@ label {
   font-weight:600;
   color:#4e65ac;
 }
+
+/* Dropdowns — square edges, blue text and border */
 select {
   width:260px;
   padding:8px 10px;
   border:1px solid #4e65ac;
   border-radius:0;
   background:#fff;
-  color:#222;
+  color:#4e65ac;
+  font-weight:600;
   font-size:14px;
   transition:border-color 0.2s, box-shadow 0.2s;
 }
@@ -84,6 +87,23 @@ select:hover {
 }
 .dropzone .dz-button:hover { background:#3c5399; }
 
+/* Clear Results button (now above answer area) */
+#clearResultsBtn {
+  display:none; /* shown dynamically after success */
+  background:#4e65ac;
+  color:#fff;
+  border:none;
+  border-radius:0;
+  padding:12px 26px;
+  font-size:17px;
+  font-weight:700;
+  cursor:pointer;
+  margin-top:20px;
+  margin-bottom:10px;
+  float:right;
+}
+#clearResultsBtn:hover { background:#3c5399; }
+
 /* Results panel */
 #actors {
   background:#fff;
@@ -97,21 +117,6 @@ select:hover {
   border-bottom:1px solid #ddd;
 }
 .actor span { color:#4e65ac; font-weight:bold; }
-
-/* Clear Results button */
-#clearResultsBtn {
-  background:#4e65ac;
-  color:#fff;
-  border:none;
-  border-radius:0;
-  padding:10px 22px;
-  font-size:16px;
-  font-weight:600;
-  cursor:pointer;
-  margin-bottom:10px;
-  float:right;
-}
-#clearResultsBtn:hover { background:#3c5399; }
 
 /* Footer text */
 #aivs-footer {
@@ -158,12 +163,13 @@ select:hover {
   <!-- Drag-and-drop uploader -->
   <form action="/check_invoice" class="dropzone" id="invoiceDrop"></form>
 
-  <!-- Clear button and AI response area -->
-  <div id="actors">
-    <div style="text-align:right;">
-      <button id="clearResultsBtn" style="display:none;">Clear Results</button>
-    </div>
+  <!-- Clear button sits directly beneath Dropzone -->
+  <div style="text-align:right;">
+    <button id="clearResultsBtn">Clear Results</button>
   </div>
+
+  <!-- AI response area -->
+  <div id="actors"></div>
 
   <!-- AIVS footer -->
   <div id="aivs-footer">
