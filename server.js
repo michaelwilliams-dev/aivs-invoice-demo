@@ -11,20 +11,41 @@ import path from "path";
 import { fileURLToPath } from "url";
 import checkInvoiceRoute from "./backoffice/routes/check_invoice.js";
 
+// ----------------------------------------------------
+// Initialise
+// ----------------------------------------------------
+console.log("🔧 Booting AIVS Invoice Checker server …");
+
+// Node ESM path setup
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
 
-// ✅ Restrict CORS so only your portal or Shopify sites can access it
-app.use(cors({ origin: ["https://assistants.aivs.uk", "https://property-assistant-plus.onrender.com"] }));
+// ----------------------------------------------------
+// Middleware
+// ----------------------------------------------------
+app.use(
+  cors({
+    origin: [
+      "https://assistants.aivs.uk",
+      "https://property-assistant-plus.onrender.com",
+    ],
+  })
+);
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-// ✅ Serve the backoffice static assets
+// ----------------------------------------------------
+// Static files and routes
+// ----------------------------------------------------
 app.use(express.static(path.join(__dirname, "backoffice")));
-
-// ✅ Register the invoice-checker route
 app.use("/", checkInvoiceRoute);
 
-// ✅ Start server
+// ----------------------------------------------------
+// Start server (Render supplies PORT env var)
+// ----------------------------------------------------
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`✅ AIVS Invoice Checker running on port ${PORT}`));
+app.listen(PORT, () => {
+  console.log(`✅ AIVS Invoice Checker running on port ${PORT}`);
+});
