@@ -1,0 +1,59 @@
+<!--
+AIVS Invoice Compliance Checker · HTML Frontend
+ISO Timestamp: 2025-11-09T18:50:00Z
+Author: AIVS Software Limited
+Brand Colour: #4e65ac
+Description:
+Drag-and-drop interface for uploading invoices to the AIVS back-office
+CIS & VAT compliance checker. Now points to /check_invoice endpoint.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Invoice Compliance Checker</title>
+<link rel="stylesheet" href="https://unpkg.com/dropzone@5/dist/min/dropzone.min.css">
+<style>
+  body { font-family: Arial, sans-serif; margin: 40px; color: #222; }
+  h1 { color: #4e65ac; }
+  label { display:block; margin-top:10px; font-weight:bold; }
+  select { margin-bottom:10px; width:250px; }
+  #actors { margin-top: 25px; }
+  .actor { padding:10px; border-bottom:1px solid #ddd; }
+  .actor span { color:#4e65ac; font-weight:bold; }
+</style>
+</head>
+<body>
+  <h1>Invoice Compliance Checker</h1>
+
+  <form id="preQuestions">
+    <label>Project type (VAT category):</label>
+    <select id="vatCategory">
+      <option value="standard-20">Standard 20%</option>
+      <option value="reduced-5">Reduced 5%</option>
+      <option value="zero-rated-new-build">Zero-rated (new build)</option>
+    </select>
+
+    <label>End user/intermediary declaration on file?</label>
+    <select id="endUserConfirmed">
+      <option value="false">No</option>
+      <option value="true">Yes</option>
+    </select>
+
+    <label>Subcontractor CIS rate:</label>
+    <select id="cisRate">
+      <option value="20">20%</option>
+      <option value="30">30%</option>
+      <option value="0">Gross payment status (0%)</option>
+    </select>
+  </form>
+
+  <!-- Updated action endpoint -->
+  <form action="/check_invoice" class="dropzone" id="invoiceDrop"></form>
+  <div id="actors"></div>
+
+<script src="https://unpkg.com/dropzone@5/dist/min/dropzone.min.js"></script>
+<script src="invoice_check.js"></script>
+</body>
+</html>
