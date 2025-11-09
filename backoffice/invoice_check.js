@@ -21,14 +21,36 @@ Dropzone.options.invoiceDrop = {
 
     this.on("success", (file, response) => {
       const actorsDiv = document.getElementById("actors");
-      const aiReply = response.aiReply;
+      const v = response.aiReply;
 
-      // If the reply is an object, pretty-print it
-      let formattedAIReply;
-      if (typeof aiReply === "object") {
-        formattedAIReply = `<pre>${JSON.stringify(aiReply, null, 2)}</pre>`;
+      let formattedAIReply = "";
+
+      // If AI returned structured JSON, render readable sections
+      if (typeof v === "object" && v !== null) {
+        formattedAIReply = `
+          <div class="ai-section">
+            <h3>VAT / DRC Check</h3>
+            <p>${v.vat_check || "—"}</p>
+          </div>
+          <div class="ai-section">
+            <h3>CIS Check</h3>
+            <p>${v.cis_check || "—"}</p>
+          </div>
+          <div class="ai-section">
+            <h3>Required Wording</h3>
+            <p>${v.required_wording || "—"}</p>
+          </div>
+          <div class="ai-section">
+            <h3>Corrected Invoice</h3>
+            <pre>${v.corrected_invoice || "—"}</pre>
+          </div>
+          <div class="ai-section">
+            <h3>Summary</h3>
+            <p>${v.summary || "—"}</p>
+          </div>
+        `;
       } else {
-        formattedAIReply = aiReply;
+        formattedAIReply = v || "No AI response.";
       }
 
       actorsDiv.innerHTML = `
