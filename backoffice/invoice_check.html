@@ -50,11 +50,14 @@ select{
   width:260px;
   padding:8px 10px;
   border:1px solid var(--aivs-blue);
-  border-radius:0;
+  border-radius:0 !important;        /* force square in all browsers */
   background:#fff;
   color:var(--aivs-blue);
   font-weight:600;
   font-size:14px;
+  -webkit-appearance:none;
+  -moz-appearance:none;
+  appearance:none;
 }
 select:focus,select:hover{
   border-color:var(--aivs-blue);
@@ -107,7 +110,6 @@ select:focus,select:hover{
 
 /* --- Clear button -------------------------------------------- */
 #clearResultsBtn{
-  display:none;
   background:var(--aivs-blue);
   color:#fff;
   border:none;
@@ -189,8 +191,5 @@ select:focus,select:hover{
 
 <script src="https://unpkg.com/dropzone@5/dist/min/dropzone.min.js"></script>
 <script src="invoice_check.js"></script>
-</body>
-</html>
-  <script src="invoice_check.js"></script>
 </body>
 </html>
