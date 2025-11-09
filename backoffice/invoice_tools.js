@@ -55,6 +55,14 @@ Context:
 - CIS rate: ${flags.cisRate}%
 - Reason: ${vatDecision.reason}
 
+Check:
+1. Whether VAT and DRC treatment are correct.
+2. Whether CIS is calculated properly on the labour element.
+3. Whether required wording is present or missing.
+4. Provide corrected wording and compliance notes.
+   • If the invoice states “No VAT” but the supply is zero-rated, replace “No VAT” with “Zero-rated (0 %)” and include the correct statutory reference (VATA 1994 Sch 8 Group 5).
+   • Confirm that the Domestic Reverse Charge does not apply to zero-rated supplies.
+
 Please return a JSON object with the following structure:
 {
   "vat_check": "...",
@@ -132,6 +140,12 @@ ${text}
 
   try {
     const result = JSON.parse(res.choices[0].message.content);
+
+    // 🔧 Auto-correct any "No VAT" wording to "Zero-rated (0 %)"
+    if (result.corrected_invoice && result.corrected_invoice.includes("No VAT")) {
+      result.corrected_invoice = result.corrected_invoice.replace(/No VAT/gi, "Zero-rated (0 %)");
+    }
+
     return result;
   } catch (err) {
     console.error("⚠️ JSON parse error:", err.message);
