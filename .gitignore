@@ -1,0 +1,8 @@
+# AIVS Invoice Checker
+node_modules/
+.DS_Store
+.env
+logs/
+*.log
+uploads/
+tmp/
