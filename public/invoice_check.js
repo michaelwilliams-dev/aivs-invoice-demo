@@ -23,12 +23,14 @@ Dropzone.options.invoiceDrop = {
       background:#4e65ac;
       color:#fff;
       border:none;
-      padding:6px 14px;
+      padding:12px 28px;
       border-radius:4px;
       cursor:pointer;
       display:none;
       float:right;
       margin-top:10px;
+      font-size:16px;           /* slightly larger text */
+      font-weight:600;          /* bolder text */
     `;
     actorsDiv.insertAdjacentElement("afterend", clearBtn);
 
