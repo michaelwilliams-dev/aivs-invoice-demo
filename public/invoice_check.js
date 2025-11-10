@@ -1,17 +1,18 @@
 /**
- * AIVS Invoice Compliance Checker · Front-End Logic (Stable reset)
- * ISO Timestamp: 2025-11-10T18:30:00Z
+ * AIVS Invoice Compliance Checker · Front-End Logic (stable drag-and-drop)
+ * ISO Timestamp: 2025-11-10T19:25:00Z
  * Author: AIVS Software Limited
  */
 
 Dropzone.options.invoiceDrop = {
   maxFilesize: 10,
   acceptedFiles: ".pdf,.jpg,.png,.json",
+
   init: function () {
     const dz = this;
     const actorsDiv = document.getElementById("actors");
 
-    // --- Clear button -------------------------------------------------
+    // --- Create "Clear Results" button --------------------------------
     const clearBtn = document.createElement("button");
     clearBtn.textContent = "Clear Results";
     clearBtn.id = "clearResultsBtn";
@@ -34,16 +35,15 @@ Dropzone.options.invoiceDrop = {
       clearBtn.style.display = "none";
     });
 
-    // --- Metadata before upload --------------------------------------
-    this.on("sending", function (file, xhr, formData) {
+    // --- Attach form metadata -----------------------------------------
+    this.on("sending", (file, xhr, formData) => {
       formData.append("vatCategory", document.getElementById("vatCategory").value);
       formData.append("endUserConfirmed", document.getElementById("endUserConfirmed").value);
       formData.append("cisRate", document.getElementById("cisRate").value);
     });
 
-    // --- Handle success ----------------------------------------------
-    this.on("success", function (file, response) {
-      console.log("✅ Server reply:", response);
+    // --- Show server reply --------------------------------------------
+    this.on("success", (file, response) => {
       const reply = typeof response === "string" ? JSON.parse(response) : response;
       const ai = reply.aiReply || {};
 
@@ -58,12 +58,11 @@ Dropzone.options.invoiceDrop = {
         </div>
         <div class="actor"><span>Response Time:</span> ${reply.timestamp}</div>
       `;
-
       clearBtn.style.display = "inline-block";
     });
 
-    // --- Handle error ------------------------------------------------
-    this.on("error", function (file, err) {
+    // --- Handle errors ------------------------------------------------
+    this.on("error", (file, err) => {
       console.error("❌ Upload failed:", err);
       alert("Upload failed – check console for details.");
     });
