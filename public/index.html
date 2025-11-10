@@ -1,189 +1,182 @@
+<!--
+AIVS CIS Compliance Checker · HTML Frontend
+ISO Timestamp: 2025-11-09T18:50:00Z
+Author: AIVS Software Limited
+Brand Colour: #4e65ac
+Description:
+Drag-and-drop interface for uploading invoices to the AIVS back-office
+CIS & VAT compliance checker. Points to /check_invoice endpoint.
+-->
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>AIVS Construction Invoice Compliance Check</title>
-  
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>AIVS CIS Compliance Checker</title>
+<link rel="stylesheet" href="https://unpkg.com/dropzone@5/dist/min/dropzone.min.css">
+
 <style>
- 
-  body {font-family: "Helvetica Neue", Arial, sans-serif; background:#f8f9fb; color:#333; margin:0; padding:2rem;}
-  h1 {color:#4e65ac; text-align:center; margin-bottom:1rem;}
-  form {max-width:900px; margin:0 auto; background:#fff; padding:1.5rem 2rem; border-radius:1rem; box-shadow:0 2px 10px rgba(0,0,0,0.1);}
-  label {display:block; margin-top:1rem; font-weight:bold;}
-  select, input, textarea, button {width:100%; padding:0.5rem; margin-top:0.25rem; border-radius:0.5rem; border:1px solid #ccc; font-size:1rem;}
-  button {background:#4e65ac; color:#fff; font-weight:bold; cursor:pointer; border:none; margin-top:1rem; padding:0.75rem 1rem; border-radius:0.5rem;}
-  button:hover {background:#3d528f;}
-  table {width:100%; border-collapse:collapse; margin-top:1rem;}
-  th, td {padding:0.6rem; border-bottom:1px solid #eee; text-align:left;}
-  th {background:#f2f4fa; color:#4e65ac;}
-  .add-btn {background:#4e65ac; color:#fff; border:none; border-radius:0.5rem; padding:0.4rem 0.8rem; cursor:pointer;}
-  .remove-btn {background:#e14c4c; color:#fff; border:none; border-radius:0.5rem; padding:0.4rem 0.8rem; cursor:pointer;}
-  .section-title {color:#4e65ac; border-bottom:2px solid #4e65ac; padding-bottom:0.2rem; margin-top:1.5rem;}
-  .result-box {max-width:900px; margin:1.5rem auto; background:#fff; border-radius:1rem; box-shadow:0 2px 10px rgba(0,0,0,0.1); padding:1.5rem 2rem; display:none;}
-  .ok {color:green; font-weight:bold;} .warn {color:#e2a500; font-weight:bold;} .fail {color:red; font-weight:bold;}
+:root { --aivs-blue:#4e65ac; }
+
+/* --- Base layout ------------------------------------------------------ */
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  background:#fafafa;
+  color:#222;
+  margin:0;
+  padding:20px 40px;
+}
+
+/* Heading -------------------------------------------------------------- */
+h1.page-title{
+  text-align:center;
+  color:var(--aivs-blue);
+  font-size:1.8em;
+  margin-bottom:24px;
+  font-weight:600;
+  border-bottom:2px solid var(--aivs-blue);
+  padding-bottom:6px;
+}
+
+/* Labels & dropdowns --------------------------------------------------- */
+label{
+  display:block;
+  margin-top:12px;
+  margin-bottom:6px;
+  font-weight:600;
+  color:var(--aivs-blue);
+}
+select{
+  width:260px;
+  padding:8px 10px;
+  border:1px solid var(--aivs-blue);
+  border-radius:0 !important;   /* square in all browsers */
+  background:#fff;
+  color:var(--aivs-blue);
+  font-weight:600;
+  font-size:14px;
+  -webkit-appearance:none;
+  -moz-appearance:none;
+  appearance:none;
+}
+select:focus,select:hover{
+  border-color:var(--aivs-blue);
+  box-shadow:0 0 0 1px var(--aivs-blue) inset;
+  outline:none;
+}
+
+/* --- Dropzone upload box --------------------------------------------- */
+.dropzone{
+  border:3px solid var(--aivs-blue);
+  border-radius:0;
+  background:#fff;
+  margin-top:25px;
+  min-height:200px;
+  color:var(--aivs-blue);
+  font-weight:700;
+  position:relative;
+  text-transform:uppercase;
+  letter-spacing:.6px;
+}
+.dropzone .dz-button{
+  background:var(--aivs-blue);
+  color:#fff;
+  border:none;
+  border-radius:0;
+  padding:14px 34px;
+  cursor:pointer;
+  font-size:16px;
+}
+.dropzone .dz-button:hover{ background:#3c5399; }
+
+/* Progress indicator --------------------------------------------------- */
+.dz-progress{
+  position:absolute;
+  left:50%;
+  bottom:20px;
+  transform:translateX(-50%);
+  width:60%;
+  height:16px;
+  background:#e7ebf3;
+  border:1px solid var(--aivs-blue);
+  border-radius:0;
+}
+.dz-upload{
+  background-color:var(--aivs-blue);
+  height:100%;
+  width:0%;
+  transition:width .3s ease-in-out;
+}
+
+
+
+/* --- Results panel ---------------------------------------------------- */
+#actors{
+  background:#fff;
+  border:2px solid var(--aivs-blue);
+  border-radius:0;
+  padding:16px;
+  margin-top:10px;
+}
+.actor{padding:10px;border-bottom:1px solid #ddd;}
+.actor span{color:var(--aivs-blue);font-weight:bold;}
+
+/* --- Footer ----------------------------------------------------------- */
+#aivs-footer{
+  margin-top:30px;
+  text-align:center;
+  font-size:12px;
+  color:#555;
+  border-top:1px solid #e7ebf3;
+  padding-top:10px;
+}
+#aivs-footer div{margin-top:4px;color:#777;}
 </style>
 </head>
+
 <body>
-<h1>Construction Invoice Compliance Check</h1>
+<h1 class="page-title">AIVS CIS Compliance Checker</h1>
 
-<form id="invoiceForm">
-  <h3 class="section-title">Invoice Header</h3>
-
-  <label>Customer Type</label>
-  <select name="customer_type" required>
-    <option>Main contractor</option>
-    <option>End client / homeowner</option>
-    <option>Retail customer</option>
-    <option>Other</option>
+<form id="preQuestions">
+  <label>Project type (VAT category):</label>
+  <select id="vatCategory">
+    <option value="standard-20">Standard 20%</option>
+    <option value="reduced-5">Reduced 5%</option>
+    <option value="zero-rated-new-build">Zero-rated (new build)</option>
   </select>
 
-  <label>Supplier Role</label>
-  <select name="supplier_role" required>
-    <option>Subcontractor</option>
-    <option>Main contractor</option>
-    <option>Developer</option>
-    <option>Material supplier</option>
+  <label>End user/intermediary declaration on file?</label>
+  <select id="endUserConfirmed">
+    <option value="false">No</option>
+    <option value="true">Yes</option>
   </select>
 
-  <label>Work Category</label>
-  <select name="work_category" required>
-    <option>Labour only</option>
-    <option selected>Labour + materials</option>
-    <option>Materials only</option>
-    <option>Professional services</option>
+  <label>Subcontractor CIS rate:</label>
+  <select id="cisRate">
+    <option value="20">20%</option>
+    <option value="30">30%</option>
+    <option value="0">Gross payment status (0%)</option>
   </select>
-
-  <label>Site Type</label>
-  <select name="site_type" required>
-    <option>New build</option>
-    <option selected>Domestic renovation</option>
-    <option>Commercial</option>
-    <option>Mixed use</option>
-  </select>
-
-  <label>CIS Status</label>
-  <select name="cis_status" required>
-    <option selected>Registered subcontractor</option>
-    <option>Gross payment status</option>
-    <option>Not registered</option>
-  </select>
-
-  <label>VAT Treatment</label>
-  <select name="vat_treatment" required>
-    <option>20% standard</option>
-    <option selected>5% reduced</option>
-    <option>0% reverse charge</option>
-    <option>Exempt</option>
-  </select>
-
-  <label>Account Code</label>
-  <select name="account_code" required>
-    <option selected>400 - Construction Income</option>
-    <option>401 - Labour</option>
-    <option>402 - Materials</option>
-    <option>499 - Miscellaneous</option>
-  </select>
-
-  <h3 class="section-title">Invoice Line Items</h3>
-  <table id="lineTable">
-    <thead>
-      <tr><th>Description</th><th>Category</th><th>Amount (£)</th><th>VAT Rate</th><th></th></tr>
-    </thead>
-    <tbody id="lineBody">
-      <tr>
-        <td><input type="text" name="desc" value="Labour – bricklaying" required></td>
-        <td><select name="category"><option selected>Labour</option><option>Materials</option><option>Hire</option><option>Professional</option></select></td>
-        <td><input type="number" name="amount" value="7500" required></td>
-        <td><select name="vat_rate"><option>20%</option><option>5%</option><option selected>0% reverse charge</option></select></td>
-        <td><button type="button" class="remove-btn" onclick="removeLine(this)">X</button></td>
-      </tr>
-      <tr>
-        <td><input type="text" name="desc" value="Materials – bricks and cement" required></td>
-        <td><select name="category"><option>Labour</option><option selected>Materials</option><option>Hire</option><option>Professional</option></select></td>
-        <td><input type="number" name="amount" value="2500" required></td>
-        <td><select name="vat_rate"><option selected>20%</option><option>5%</option><option>0% reverse charge</option></select></td>
-        <td><button type="button" class="remove-btn" onclick="removeLine(this)">X</button></td>
-      </tr>
-    </tbody>
-  </table>
-  //<button type="button" class="add-btn" onclick="addLine()">+ Add Line</button>
-
-  <label>Total (calculated)</label>
-  <input id="totalDisplay" type="text" readonly value="10000">
-
-  <button type="submit">Check Compliance</button>
 </form>
 
-<div id="result" class="result-box">
-  <h2>Compliance Report</h2>
-  <table id="reportTable"><thead><tr><th>Check</th><th>Status</th><th>Comment</th></tr></thead><tbody id="reportBody"></tbody></table>
-  <p id="references" style="font-size:0.9rem; color:#555;"></p>
+<!-- Dropzone uploader -->
+<form action="/check_invoice" class="dropzone" id="invoiceDrop"></form>
+
+<!-- Clear Results button -->
+//<button id="clearResultsBtn">Clear Results</button>
+
+<!-- AI response area -->
+<div id="actors"></div>
+
+<!-- Footer -------------------------------------------------------------- -->
+<div id="aivs-footer">
+  <div>© AIVS Software Limited 2025 · All rights reserved.</div>
+  <div>This report and invoice layout are generated by the AIVS CIS Compliance Checker for internal advisory use. It does not constitute professional accounting or legal advice.</div>
+  <div>Users should seek appropriate professional or HMRC guidance before acting on any automated output. AIVS Software Limited accepts no liability for reliance on this content without independent verification.</div>
+  <div style="font-style:italic;">Prepared for internal management advisory purposes only · Not for external distribution.</div>
 </div>
 
-<script>
-function addLine(){
-  const row=document.createElement("tr");
-  row.innerHTML=`
-    <td><input type="text" name="desc" placeholder="Description" required></td>
-    <td><select name="category"><option>Labour</option><option>Materials</option><option>Hire</option><option>Professional</option></select></td>
-    <td><input type="number" name="amount" value="0" required></td>
-    <td><select name="vat_rate"><option>20%</option><option>5%</option><option>0% reverse charge</option></select></td>
-    <td><button type="button" class="remove-btn" onclick="removeLine(this)">X</button></td>`;
-  document.getElementById("lineBody").appendChild(row);
-  calcTotal();
-}
-function removeLine(btn){btn.closest("tr").remove();calcTotal();}
-function calcTotal(){
-  let sum=0;
-  document.querySelectorAll("#lineBody input[name='amount']").forEach(a=>sum+=parseFloat(a.value||0));
-  document.getElementById("totalDisplay").value=sum.toFixed(2);
-}
-document.getElementById("lineBody").addEventListener("input", calcTotal);
-
-document.getElementById("invoiceForm").addEventListener("submit", async(e)=>{
-  e.preventDefault();calcTotal();
-  const f=e.target;const lines=[];
-  document.querySelectorAll("#lineBody tr").forEach(tr=>{
-    lines.push({
-      description:tr.querySelector("input[name='desc']").value,
-      category:tr.querySelector("select[name='category']").value,
-      amount:parseFloat(tr.querySelector("input[name='amount']").value||0),
-      vat_rate:tr.querySelector("select[name='vat_rate']").value
-    });
-  });
-  const payload={
-    customer_type:f.customer_type.value,
-    supplier_role:f.supplier_role.value,
-    work_category:f.work_category.value,
-    site_type:f.site_type.value,
-    cis_status:f.cis_status.value,
-    vat_treatment:f.vat_treatment.value,
-    account_code:f.account_code.value,
-    line_items:lines,
-    subtotal:document.getElementById("totalDisplay").value
-  };
-  const body=document.getElementById("reportBody");
-  const refs=document.getElementById("references");
-  const box=document.getElementById("result");
-  box.style.display="block";
-  body.innerHTML="<tr><td colspan='3'>Checking compliance...</td></tr>";
-  try{
-    const res=await fetch("https://your-backend-url.onrender.com/checkInvoice",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
-    const json=await res.json();
-    body.innerHTML="";
-    if(json.table){
-      json.table.forEach(row=>{
-        const tr=document.createElement("tr");
-        tr.innerHTML=`<td>${row.check}</td><td class="${row.status.toLowerCase()}">${row.status}</td><td>${row.comment}</td>`;
-        body.appendChild(tr);
-      });
-      refs.innerHTML=`<strong>HMRC References:</strong> ${json.references.join("; ")}`;
-    }else{
-      body.innerHTML=`<tr><td colspan='3'>${json.verdict||JSON.stringify(json,null,2)}</td></tr>`;
-    }
-  }catch(err){body.innerHTML=`<tr><td colspan='3'>Error: ${err.message}</td></tr>`;}
-});
-</script>
+<script src="https://unpkg.com/dropzone@5/dist/min/dropzone.min.js"></script>
+<script src="invoice_check.js"></script>
 </body>
 </html>
