@@ -108,8 +108,6 @@ select:focus,select:hover{
   transition:width .3s ease-in-out;
 }
 
-
-
 /* --- Results panel ---------------------------------------------------- */
 #actors{
   background:#fff;
@@ -159,8 +157,44 @@ select:focus,select:hover{
   </select>
 </form>
 
-<!-- Dropzone uploader -->
-<form action="/check_invoice" class="dropzone" id="invoiceDrop"></form>
+<!-- Dropzone upload area -->
+<form action="/check_invoice" class="dropzone" id="myDropzone" style="
+  border:2px dashed #4e65ac;
+  border-radius:6px;
+  padding:40px;
+  width:80%;
+  margin:40px auto;
+  text-align:center;
+  color:#4e65ac;
+  font-weight:600;
+">
+  Drop files here to upload
+</form>
+
+<!-- Progress bar + text -->
+<div style="position:relative; width:80%; margin:30px auto; text-align:center;">
+  <div id="progressText" style="
+    color:#4e65ac;
+    font-weight:600;
+    font-size:15px;
+    margin-bottom:8px;
+  ">Waiting for file...</div>
+
+  <div style="
+    position:relative;
+    width:100%;
+    height:18px;
+    background:#e7ebf3;
+    border:1px solid #4e65ac;
+  ">
+    <div id="progressBar" style="
+      width:0%;
+      height:100%;
+      background:#4e65ac;
+      transition:width .3s ease-in-out;
+    "></div>
+  </div>
+</div>
 
 <!-- Clear Results button -->
 <button id="clearResultsBtn">Clear Results</button>
@@ -176,7 +210,33 @@ select:focus,select:hover{
   <div style="font-style:italic;">Prepared for internal management advisory purposes only · Not for external distribution.</div>
 </div>
 
-<script src="https://unpkg.com/dropzone@5/dist/min/dropzone.min.js"></script>
+<!-- Dropzone + progress logic -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dropzone/5.9.3/min/dropzone.min.js"></script>
+<script>
+  Dropzone.autoDiscover = false;
+
+  const progressBar = document.getElementById('progressBar');
+  const progressText = document.getElementById('progressText');
+
+  const dz = new Dropzone('#myDropzone', {
+    url: '/check_invoice',   // using your checker endpoint
+    maxFiles: 1,
+    init: function() {
+      this.on('uploadprogress', function(file, progress) {
+        progressBar.style.width = progress + '%';
+        progressText.textContent = `Uploading... ${Math.round(progress)}%`;
+      });
+      this.on('success', function() {
+        progressText.textContent = '✅ Upload complete!';
+      });
+      this.on('error', function() {
+        progressText.textContent = '❌ Upload failed.';
+      });
+    }
+  });
+</script>
+
+<!-- Keep if you still need other logic in invoice_check.js -->
 <script src="invoice_check.js"></script>
 </body>
 </html>
