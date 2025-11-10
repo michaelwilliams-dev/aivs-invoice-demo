@@ -51,26 +51,28 @@ Dropzone.options.invoiceDrop = {
       const v = response.aiReply;
       let formattedAIReply = "";
 
+      /* ▼▼▼ CHANGE START — blue, smaller section headings ▼▼▼ */
       if (typeof v === "object" && v !== null) {
         formattedAIReply = `
           <div class="ai-section">
-            <h3>VAT / DRC Check</h3><p>${v.vat_check || "—"}</p>
+            <h3 style="color:#4e65ac;font-size:15px;font-weight:600;">VAT / DRC Check</h3><p>${v.vat_check || "—"}</p>
           </div>
           <div class="ai-section">
-            <h3>CIS Check</h3><p>${v.cis_check || "—"}</p>
+            <h3 style="color:#4e65ac;font-size:15px;font-weight:600;">CIS Check</h3><p>${v.cis_check || "—"}</p>
           </div>
           <div class="ai-section">
-            <h3>Required Wording</h3><p>${v.required_wording || "—"}</p>
+            <h3 style="color:#4e65ac;font-size:15px;font-weight:600;">Required Wording</h3><p>${v.required_wording || "—"}</p>
           </div>
           <div class="ai-section">
-            <h3>Corrected Invoice</h3><div>${v.corrected_invoice || "—"}</div>
+            <h3 style="color:#4e65ac;font-size:15px;font-weight:600;">Corrected Invoice</h3><div>${v.corrected_invoice || "—"}</div>
           </div>
           <div class="ai-section">
-            <h3>Summary</h3><p>${v.summary || "—"}</p>
+            <h3 style="color:#4e65ac;font-size:15px;font-weight:600;">Summary</h3><p>${v.summary || "—"}</p>
           </div>`;
       } else {
         formattedAIReply = v || "No AI response.";
       }
+      /* ▲▲▲ CHANGE END — blue, smaller section headings ▲▲▲ */
 
       actorsDiv.innerHTML = `
         <div class="actor"><span>Uploader:</span> ${file.name}</div>
