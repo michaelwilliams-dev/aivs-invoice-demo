@@ -34,6 +34,7 @@ router.post("/check_invoice", async (req, res) => {
     /* ▼▼▼  CHANGE START — replaced placeholder with real analysis  ▼▼▼ */
     const parsed = await parseInvoice(file.data);
     const aiReply = await analyseInvoice(parsed.text, flags);
+    console.log("🧾 AI reply returned:", aiReply);  // ✅ added debug line
     /* ▲▲▲  CHANGE END   — replaced placeholder with real analysis  ▲▲▲ */
 
     res.json({
