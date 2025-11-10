@@ -1,42 +1,48 @@
 /**
- * AIVS Invoice Compliance Checker · Backend Route (Original express-fileupload version)
- * ISO Timestamp: 2025-11-10T16:15:00Z
+ * AIVS Invoice Compliance Checker · Frontend Logic
+ * ISO Timestamp: 2025-11-10T17:30:00Z
  * Author: AIVS Software Limited
+ * Brand Colour: #4e65ac
  */
 
-import express from "express";
-import fileUpload from "express-fileupload";
+Dropzone.autoDiscover = false;
 
-const router = express.Router();
+Dropzone.options.invoiceDrop = {
+  url: "/check_invoice",
+  maxFilesize: 10,
+  acceptedFiles: ".pdf,.jpg,.png,.json",
 
-// enable file upload middleware
-router.use(fileUpload());
-
-// POST /check_invoice
-router.post("/check_invoice", async (req, res) => {
-  try {
-    const file = req.files ? req.files.file : null;
-    console.log("📄 File received:", file?.name);
-    console.log("VAT Category:", req.body.vatCategory);
-    console.log("End User Confirmed:", req.body.endUserConfirmed);
-    console.log("CIS Rate:", req.body.cisRate);
-
-    res.json({
-      parserNote: "Invoice upload received successfully.",
-      aiReply: {
-        vat_check: "Reverse charge correctly applied.",
-        cis_check: "CIS deduction required at 20%.",
-        required_wording:
-          "Include 'Customer to account for VAT under the reverse charge'.",
-        corrected_invoice: "<p>Example corrected invoice preview.</p>",
-        summary: "Invoice appears compliant under CIS and DRC rules."
-      },
-      timestamp: new Date().toISOString()
+  init: function () {
+    this.on("sending", (file, xhr, formData) => {
+      formData.append("vatCategory", document.getElementById("vatCategory").value);
+      formData.append("endUserConfirmed", document.getElementById("endUserConfirmed").value);
+      formData.append("cisRate", document.getElementById("cisRate").value);
     });
-  } catch (err) {
-    console.error("❌ Error in /check_invoice:", err);
-    res.status(500).json({ error: err.message });
-  }
-});
 
+    this.on("success", (file, response) => {
+      console.log("✅ Upload response:", response);
+
+      const reply = typeof response === "string" ? JSON.parse(response) : response;
+      const ai = reply.aiReply || {};
+      const actorsDiv = document.getElementById("actors");
+
+      actorsDiv.innerHTML = `
+        <h3 style="color:#4e65ac;">Compliance Report</h3>
+        <p><strong>${reply.parserNote}</strong></p>
+        <ul style="line-height:1.6">
+          <li><b>VAT / DRC Check:</b> ${ai.vat_check || "—"}</li>
+          <li><b>CIS Check:</b> ${ai.cis_check || "—"}</li>
+          <li><b>Required Wording:</b> ${ai.required_wording || "—"}</li>
+          <li><b>Summary:</b> ${ai.summary || "—"}</li>
+        </ul>
+        <p style="font-size:0.9em;color:#555;">${reply.timestamp}</p>
+      `;
+    });
+
+    this.on("error", (file, err) => {
+      console.error("❌ Upload failed:", err);
+      alert("Upload failed. See console for details.");
+    });
+  },
+};
 export default router;
