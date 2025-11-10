@@ -1,18 +1,22 @@
 /**
- * AIVS Invoice Compliance Checker · Backend Route
- * ISO Timestamp: 2025-11-10T15:25:00Z
+ * AIVS Invoice Compliance Checker · Backend Route (Original express-fileupload version)
+ * ISO Timestamp: 2025-11-10T16:15:00Z
  * Author: AIVS Software Limited
  */
 
 import express from "express";
-import multer from "multer";
+import fileUpload from "express-fileupload";
 
 const router = express.Router();
-const upload = multer({ dest: "uploads/" });
 
-router.post("/check_invoice", upload.single("file"), async (req, res) => {
+// enable file upload middleware
+router.use(fileUpload());
+
+// POST /check_invoice
+router.post("/check_invoice", async (req, res) => {
   try {
-    console.log("📄 File received:", req.file?.originalname);
+    const file = req.files ? req.files.file : null;
+    console.log("📄 File received:", file?.name);
     console.log("VAT Category:", req.body.vatCategory);
     console.log("End User Confirmed:", req.body.endUserConfirmed);
     console.log("CIS Rate:", req.body.cisRate);
