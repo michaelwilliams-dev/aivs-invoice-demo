@@ -1,6 +1,6 @@
 /**
  * AIVS Invoice Compliance Checker · Frontend Logic
- * ISO Timestamp: 2025-11-11T19:50:00Z
+ * ISO Timestamp: 2025-11-11T20:15:00Z
  * Author: AIVS Software Limited
  * Brand Colour: #4e65ac
  * Description:
@@ -23,6 +23,16 @@ const dz = new Dropzone("#invoiceDrop", {
     const dzInstance = this;
     const dzElement  = document.getElementById("invoiceDrop");
     const actorsDiv  = document.getElementById("actors");
+    const clearBtn   = document.getElementById("clearResultsBtn");
+
+    // --- Clear Results button logic -------------------------------------
+    clearBtn.addEventListener("click", () => {
+      actorsDiv.innerHTML = "";               // Clear report output
+      dzInstance.removeAllFiles(true);        // Remove uploaded file
+      const overlay = document.getElementById("uploadOverlay");
+      if (overlay) overlay.innerHTML = "📄 Drop or click to upload invoice";
+      clearBtn.style.display = "none";        // Hide button again
+    });
 
     // compact fixed height
     dzElement.style.height = "80px";
@@ -51,7 +61,7 @@ const dz = new Dropzone("#invoiceDrop", {
     overlay.textContent = "📄 Drop or click to upload invoice";
     dzElement.appendChild(overlay);
 
-    // ---- sending (start upload) ------------------------------------------
+    // ---- sending (start upload) ----------------------------------------
     dzInstance.on("sending", (file, xhr, formData) => {
       overlay.innerHTML = `⏳ Uploading<br>${file.name}`;
       formData.append("vatCategory", document.getElementById("vatCategory").value);
@@ -59,7 +69,7 @@ const dz = new Dropzone("#invoiceDrop", {
       formData.append("cisRate", document.getElementById("cisRate").value);
     });
 
-    // ---- success ----------------------------------------------------------
+    // ---- success --------------------------------------------------------
     dzInstance.on("success", (file, response) => {
       // Replace overlay content with Uploader + Parser lines inside the same box
       overlay.innerHTML = `
@@ -108,14 +118,17 @@ ${JSON.stringify(response, null, 2)}
           <span style="color:#4e65ac;font-weight:600;">Response Time:</span>
           ${response.timestamp || "—"}
         </div>`;
+
+      // Show Clear button
+      clearBtn.style.display = "inline-block";
     });
 
-    // ---- error ------------------------------------------------------------
+    // ---- error ----------------------------------------------------------
     dzInstance.on("error", (file, err) => {
       overlay.innerHTML = `<span style="color:#c0392b;">❌ Upload failed – ${err}</span>`;
     });
 
-    // ---- enforce single file ---------------------------------------------
+    // ---- enforce single file -------------------------------------------
     dzInstance.on("addedfile", () => {
       if (dzInstance.files.length > 1) dzInstance.removeFile(dzInstance.files[0]);
     });
