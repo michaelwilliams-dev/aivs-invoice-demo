@@ -147,3 +147,29 @@ ${JSON.stringify(response, null, 2)}
     });
   },
 });
+
+// ✅ NEW: Manual email send button logic
+document.getElementById("sendEmailBtn").addEventListener("click", async () => {
+  const payload = {
+    userEmail: document.getElementById("userEmail").value,
+    emailCopy1: document.getElementById("emailCopy1").value,
+    emailCopy2: document.getElementById("emailCopy2").value
+  };
+
+  try {
+    const res = await fetch("/send_email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await res.json();
+    if (data.status === "email_sent") {
+      alert("✅ Emails sent successfully!");
+    } else {
+      alert("⚠️ Email not sent: " + (data.error || "Unknown error"));
+    }
+  } catch (err) {
+    alert("❌ Error sending emails: " + err.message);
+  }
+});
