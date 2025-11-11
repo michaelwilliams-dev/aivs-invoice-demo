@@ -132,5 +132,53 @@ export async function saveReportFiles(aiReply) {
   pdf.end();
 
   console.log("✅ Report files saved:", docPath, pdfPath);
-  return { docPath, pdfPath };
+  return { docPath, pdfPath, timestamp };
+}
+
+// ----------------------------------------------------
+// Mailjet Email Sender – send Word + PDF attachments
+// ----------------------------------------------------
+import Mailjet from "node-mailjet";
+
+const mailjet = Mailjet.apiConnect(
+  process.env.MJ_APIKEY_PUBLIC,
+  process.env.MJ_APIKEY_PRIVATE
+);
+
+export async function sendReportEmail(to, ccList, docPath, pdfPath, timestamp) {
+  try {
+    const attachments = [
+      {
+        ContentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        Filename: `AIVS_Compliance_Report_${timestamp}.docx`,
+        Base64Content: fs.readFileSync(docPath).toString("base64"),
+      },
+      {
+        ContentType: "application/pdf",
+        Filename: `AIVS_Raw_Output_${timestamp}.pdf`,
+        Base64Content: fs.readFileSync(pdfPath).toString("base64"),
+      },
+    ];
+
+    const result = await mailjet.post("send", { version: "v3.1" }).request({
+      Messages: [
+        {
+          From: { Email: "noreply@aivs.uk", Name: "AIVS Invoice Checker" },
+          To: [{ Email: to }],
+          Cc: ccList.filter(Boolean).map((e) => ({ Email: e })),
+          Subject: `AIVS Invoice Compliance Report · ${timestamp}`,
+          HTMLPart: `
+            <h3>Invoice Compliance Report – ${timestamp}</h3>
+            <p>Your report is attached in Word (.docx) and PDF formats.</p>
+            <p>© AIVS Software Limited 2025 – Confidential Internal Advisory Copy.</p>
+          `,
+          Attachments: attachments,
+        },
+      ],
+    });
+
+    console.log("📧 Email sent:", result.body.Messages[0].Status);
+  } catch (err) {
+    console.error("❌ Mailjet send error:", err.message);
+  }
 }
