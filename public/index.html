@@ -181,7 +181,7 @@ select:focus,select:hover{
 <!-- --- Email Inputs -------------------------------------------- -->
 <div id="emailSection" style="margin-top:25px;">
   <label for="userEmail"
-    style="display:block;margin-bottom:8px;font-weight:600;color:#4e65ac;">
+    style="display:block;margin-bottom:8px;font-weight:600;color:var(--aivs-blue);">
     Email addresses (for report copies):
   </label>
 
@@ -190,17 +190,18 @@ select:focus,select:hover{
     id="userEmail"
     placeholder="Primary email"
     style="
-      width:260px;
+      width:400px;                     /* widened for readability */
       padding:8px 10px;
-      border:2px solid #2e3d7a;       /* thicker + darker AIVS blue */
+      border:1.5px solid var(--aivs-blue);
       border-radius:0;
       background:#fff;
-      color:#111;
+      color:#222;
       font-size:14px;
       font-weight:500;
       box-sizing:border-box;
       margin-bottom:10px;
       display:block;
+      box-shadow:0 0 0 1px rgba(78,101,172,0.1);
     "
   >
 
@@ -209,17 +210,18 @@ select:focus,select:hover{
     id="emailCopy1"
     placeholder='Copy to (optional)'
     style="
-      width:260px;
+      width:400px;
       padding:8px 10px;
-      border:2px solid #2e3d7a;
+      border:1.5px solid var(--aivs-blue);
       border-radius:0;
       background:#fff;
-      color:#111;
+      color:#222;
       font-size:14px;
       font-weight:500;
       box-sizing:border-box;
       margin-bottom:10px;
       display:block;
+      box-shadow:0 0 0 1px rgba(78,101,172,0.1);
     "
   >
 
@@ -228,19 +230,21 @@ select:focus,select:hover{
     id="emailCopy2"
     placeholder='Copy to (optional)'
     style="
-      width:260px;
+      width:400px;
       padding:8px 10px;
-      border:2px solid #2e3d7a;
+      border:1.5px solid var(--aivs-blue);
       border-radius:0;
       background:#fff;
-      color:#111;
+      color:#222;
       font-size:14px;
       font-weight:500;
       box-sizing:border-box;
       display:block;
+      box-shadow:0 0 0 1px rgba(78,101,172,0.1);
     "
   >
 </div>
+  
 <!-- AI response area -->
 <div id="actors"></div>
 
