@@ -139,7 +139,7 @@ select:focus,select:hover{
   </select>
 </form>
 
-<!-- Dropzone uploader (now includes email fields) -->
+<!-- Dropzone uploader (includes email fields) -->
 <form action="/check_invoice" class="dropzone" id="invoiceDrop">
 
   <!-- --- Email Inputs -------------------------------------------- -->
@@ -184,6 +184,22 @@ select:focus,select:hover{
     cursor:pointer;
   ">
   ✖ Clear Results
+</button>
+
+<!-- ✅ NEW: Send to these emails button -->
+<button id="sendEmailBtn"
+  style="
+    background:var(--aivs-blue);
+    color:#fff;
+    border:none;
+    border-radius:0;
+    padding:10px 26px;
+    font-size:15px;
+    font-weight:600;
+    margin-top:12px;
+    cursor:pointer;
+  ">
+  📧 Send to these emails
 </button>
 
 <!-- AI response area -->
