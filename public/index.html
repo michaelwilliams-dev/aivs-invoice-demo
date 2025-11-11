@@ -112,8 +112,6 @@ select:focus,select:hover{
   transition:width .3s ease-in-out;
 }
 
-
-
 /* --- Results panel ---------------------------------------------------- */
 #actors{
   background:#fff;
@@ -166,8 +164,35 @@ select:focus,select:hover{
 <!-- Dropzone uploader -->
 <form action="/check_invoice" class="dropzone" id="invoiceDrop"></form>
 
+<!-- --- Email Inputs -------------------------------------------- -->
+<div id="emailSection" style="margin-top:25px;">
+  <label for="userEmail" style="display:block;margin-bottom:8px;font-weight:600;">
+    Email addresses (for report copies):
+  </label>
+
+  <input
+    type="email"
+    id="userEmail"
+    placeholder="Primary email"
+    style="width:100%;padding:10px;margin-bottom:10px;border:1px solid #ccc;border-radius:4px;"
+  >
+
+  <input
+    type="email"
+    id="emailCopy1"
+    placeholder="Copy to (optional)"
+    style="width:100%;padding:10px;margin-bottom:10px;border:1px solid #ccc;border-radius:4px;"
+  >
+
+  <input
+    type="email"
+    id="emailCopy2"
+    placeholder="Copy to (optional)"
+    style="width:100%;padding:10px;border:1px solid #ccc;border-radius:4px;"
+  >
+</div>
+
 <!-- Clear Results button -->
-  
 <!-- <button id="clearResultsBtn">Clear Results</button> -->
 
 <!-- AI response area -->
