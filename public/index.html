@@ -1,11 +1,11 @@
 <!--
 AIVS CIS Compliance Checker · HTML Frontend
-ISO Timestamp: 2025-11-09T18:50:00Z
+ISO Timestamp: 2025-11-11T09:40:00Z
 Author: AIVS Software Limited
 Brand Colour: #4e65ac
 Description:
-Drag-and-drop interface for uploading invoices to the AIVS back-office
-CIS & VAT compliance checker. Points to /check_invoice endpoint.
+Two-step upload + analysis flow for CIS/VAT compliance.
+Single-file upload → user presses “Start Compliance Check” to run.
 -->
 <!DOCTYPE html>
 <html lang="en">
@@ -50,7 +50,7 @@ select{
   width:260px;
   padding:8px 10px;
   border:1px solid var(--aivs-blue);
-  border-radius:0 !important;   /* square in all browsers */
+  border-radius:0 !important;
   background:#fff;
   color:var(--aivs-blue);
   font-weight:600;
@@ -78,10 +78,7 @@ select:focus,select:hover{
   text-transform:uppercase;
   letter-spacing:.6px;
 }
-  /* ▼ REMOVE Dropzone default thumbnail preview ▼ */
-.dropzone .dz-preview {
-  display: none !important;
-}
+.dropzone .dz-preview { display:none !important; }
 .dropzone .dz-button{
   background:var(--aivs-blue);
   color:#fff;
@@ -145,6 +142,7 @@ select:focus,select:hover{
     <option value="standard-20">Standard 20%</option>
     <option value="reduced-5">Reduced 5%</option>
     <option value="zero-rated-new-build">Zero-rated (new build)</option>
+    <option value="no-vat">No VAT (outside scope)</option>
   </select>
 
   <label>End user/intermediary declaration on file?</label>
@@ -164,36 +162,35 @@ select:focus,select:hover{
 <!-- Dropzone uploader -->
 <form action="/check_invoice" class="dropzone" id="invoiceDrop"></form>
 
+<!-- Start Compliance Check button -->
+<button id="startCheckBtn"
+  style="
+    display:none;
+    background:var(--aivs-blue);
+    color:#fff;
+    border:none;
+    border-radius:0;
+    padding:14px 34px;
+    cursor:pointer;
+    font-size:16px;
+    font-weight:600;
+    margin-top:18px;">
+  ▶ Start Compliance Check
+</button>
+
 <!-- --- Email Inputs -------------------------------------------- -->
 <div id="emailSection" style="margin-top:25px;">
   <label for="userEmail" style="display:block;margin-bottom:8px;font-weight:600;">
     Email addresses (for report copies):
   </label>
 
-  <input
-    type="email"
-    id="userEmail"
-    placeholder="Primary email"
-    style="width:100%;padding:10px;margin-bottom:10px;border:1px solid #ccc;border-radius:4px;"
-  >
-
-  <input
-    type="email"
-    id="emailCopy1"
-    placeholder="Copy to (optional)"
-    style="width:100%;padding:10px;margin-bottom:10px;border:1px solid #ccc;border-radius:4px;"
-  >
-
-  <input
-    type="email"
-    id="emailCopy2"
-    placeholder="Copy to (optional)"
-    style="width:100%;padding:10px;border:1px solid #ccc;border-radius:4px;"
-  >
+  <input type="email" id="userEmail" placeholder="Primary email"
+    style="width:100%;padding:10px;margin-bottom:10px;border:1px solid #ccc;border-radius:4px;">
+  <input type="email" id="emailCopy1" placeholder="Copy to (optional)"
+    style="width:100%;padding:10px;margin-bottom:10px;border:1px solid #ccc;border-radius:4px;">
+  <input type="email" id="emailCopy2" placeholder="Copy to (optional)"
+    style="width:100%;padding:10px;border:1px solid #ccc;border-radius:4px;">
 </div>
-
-<!-- Clear Results button -->
-<!-- <button id="clearResultsBtn">Clear Results</button> -->
 
 <!-- AI response area -->
 <div id="actors"></div>
