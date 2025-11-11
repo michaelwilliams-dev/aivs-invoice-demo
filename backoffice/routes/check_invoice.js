@@ -21,10 +21,10 @@ import { saveReportFiles, sendReportEmail } from "../../server.js";
 /* ▲▲▲  CHANGE END   — import helpers for report + email  ▲▲▲ */
 
 const router = express.Router();
-router.use(fileUpload());
 
-/* ✅ CHANGE ADDED — ensure non-file fields (email, VAT flags) are parsed */
+/* ✅ CHANGE — ensure non-file fields (email, VAT flags) are parsed first */
 router.use(express.urlencoded({ extended: true }));
+router.use(fileUpload());
 
 router.post("/check_invoice", async (req, res) => {
   try {
