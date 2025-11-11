@@ -1,6 +1,6 @@
 <!--
 AIVS CIS Compliance Checker · HTML Frontend
-ISO Timestamp: 2025-11-11T20:45:00Z
+ISO Timestamp: 2025-11-11T21:10:00Z
 Author: AIVS Software Limited
 Brand Colour: #4e65ac
 Description:
@@ -134,11 +134,11 @@ select:focus,select:hover{
   </select>
 </form>
 
-<!-- ===== INVOICE FILE UPLOAD ===== -->
+<!-- ===== INVOICE UPLOAD + EMAILS ===== -->
 <form action="/check_invoice" class="dropzone" id="invoiceDrop">
   <div class="dz-message">📄 Drop or click to upload invoice</div>
 
-  <!-- ===== EMAIL INPUTS ===== -->
+  <!-- Email Inputs inside Dropzone form -->
   <div id="emailSection" style="margin-top:25px;">
     <label for="userEmail"
       style="display:block;margin-bottom:8px;font-weight:600;color:var(--aivs-blue);">
@@ -179,7 +179,7 @@ select:focus,select:hover{
   📧 Send to these emails
 </button>
 
-<!-- ===== AI OUTPUT ===== -->
+<!-- ===== OUTPUT ===== -->
 <div id="actors"></div>
 
 <!-- ===== FOOTER ===== -->
