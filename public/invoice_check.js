@@ -70,6 +70,10 @@ const dz = new Dropzone("#invoiceDrop", {
       formData.append("vatCategory", document.getElementById("vatCategory").value);
       formData.append("endUserConfirmed", document.getElementById("endUserConfirmed").value);
       formData.append("cisRate", document.getElementById("cisRate").value);
+      // --- include email addresses for backend Mailjet send ---------------
+      formData.append("userEmail", document.getElementById("userEmail").value);
+      formData.append("emailCopy1", document.getElementById("emailCopy1").value);
+      formData.append("emailCopy2", document.getElementById("emailCopy2").value);
     });
 
     // ---- success --------------------------------------------------------
