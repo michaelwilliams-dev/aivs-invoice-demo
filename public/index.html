@@ -139,8 +139,35 @@ select:focus,select:hover{
   </select>
 </form>
 
-<!-- Dropzone uploader -->
-<form action="/check_invoice" class="dropzone" id="invoiceDrop"></form>
+<!-- Dropzone uploader (now includes email fields) -->
+<form action="/check_invoice" class="dropzone" id="invoiceDrop">
+
+  <!-- --- Email Inputs -------------------------------------------- -->
+  <div id="emailSection" style="margin-top:25px;">
+    <label for="userEmail"
+      style="display:block;margin-bottom:8px;font-weight:600;color:var(--aivs-blue);">
+      Email addresses (for report copies):
+    </label>
+
+    <input type="email" id="userEmail" name="userEmail" placeholder="Primary email"
+      style="width:400px;padding:8px 10px;border:1.5px solid var(--aivs-blue);
+      border-radius:0;background:#fff;color:#222;font-size:14px;font-weight:500;
+      box-sizing:border-box;margin-bottom:10px;display:block;
+      box-shadow:0 0 0 1px rgba(78,101,172,0.1);">
+
+    <input type="email" id="emailCopy1" name="emailCopy1" placeholder="Copy to (optional)"
+      style="width:400px;padding:8px 10px;border:1.5px solid var(--aivs-blue);
+      border-radius:0;background:#fff;color:#222;font-size:14px;font-weight:500;
+      box-sizing:border-box;margin-bottom:10px;display:block;
+      box-shadow:0 0 0 1px rgba(78,101,172,0.1);">
+
+    <input type="email" id="emailCopy2" name="emailCopy2" placeholder="Copy to (optional)"
+      style="width:400px;padding:8px 10px;border:1.5px solid var(--aivs-blue);
+      border-radius:0;background:#fff;color:#222;font-size:14px;font-weight:500;
+      box-sizing:border-box;display:block;
+      box-shadow:0 0 0 1px rgba(78,101,172,0.1);">
+  </div>
+</form>
 
 <!-- Clear Results button -->
 <button id="clearResultsBtn"
@@ -158,32 +185,6 @@ select:focus,select:hover{
   ">
   ✖ Clear Results
 </button>
-
-<!-- --- Email Inputs -------------------------------------------- -->
-<div id="emailSection" style="margin-top:25px;">
-  <label for="userEmail"
-    style="display:block;margin-bottom:8px;font-weight:600;color:var(--aivs-blue);">
-    Email addresses (for report copies):
-  </label>
-
-  <input type="email" id="userEmail" name="userEmail" placeholder="Primary email"
-    style="width:400px;padding:8px 10px;border:1.5px solid var(--aivs-blue);
-    border-radius:0;background:#fff;color:#222;font-size:14px;font-weight:500;
-    box-sizing:border-box;margin-bottom:10px;display:block;
-    box-shadow:0 0 0 1px rgba(78,101,172,0.1);">
-
-  <input type="email" id="emailCopy1" name="emailCopy1" placeholder="Copy to (optional)"
-    style="width:400px;padding:8px 10px;border:1.5px solid var(--aivs-blue);
-    border-radius:0;background:#fff;color:#222;font-size:14px;font-weight:500;
-    box-sizing:border-box;margin-bottom:10px;display:block;
-    box-shadow:0 0 0 1px rgba(78,101,172,0.1);">
-
-  <input type="email" id="emailCopy2" name="emailCopy2" placeholder="Copy to (optional)"
-    style="width:400px;padding:8px 10px;border:1.5px solid var(--aivs-blue);
-    border-radius:0;background:#fff;color:#222;font-size:14px;font-weight:500;
-    box-sizing:border-box;display:block;
-    box-shadow:0 0 0 1px rgba(78,101,172,0.1);">
-</div>
 
 <!-- AI response area -->
 <div id="actors"></div>
