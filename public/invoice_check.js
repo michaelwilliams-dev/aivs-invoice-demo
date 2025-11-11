@@ -1,29 +1,30 @@
 /**
  * AIVS Invoice Compliance Checker · Frontend Logic
- * ISO Timestamp: 2025-11-11T11:40:00Z
+ * ISO Timestamp: 2025-11-11T12:05:00Z
  * Author: AIVS Software Limited
  * Brand Colour: #4e65ac
  * Description:
  * Uploads one invoice automatically to /check_invoice,
- * shows progress inside upload box, displays file info after upload.
+ * shows upload progress inside the visible drop area,
+ * then reveals the Generate Report button after upload.
  */
 
 Dropzone.options.invoiceDrop = {
   maxFiles: 1,
   maxFilesize: 10,
   acceptedFiles: ".pdf,.jpg,.png,.json",
-  autoProcessQueue: true, // auto-upload on drop
+  autoProcessQueue: true, // upload immediately on drop
   init: function () {
     const dz = this;
     const actorsDiv = document.getElementById("actors");
     const dzElement = document.getElementById("invoiceDrop");
     const startBtn = document.getElementById("startCheckBtn");
-    startBtn.style.display = "none"; // hidden until upload completes
+    startBtn.style.display = "none"; // hidden until upload finishes
 
-    // Shrink drop area
+    // Compact Dropzone box
     dzElement.style.minHeight = "120px";
 
-    // Clear button
+    // Add Clear button (unchanged)
     const clearBtn = document.createElement("button");
     clearBtn.textContent = "Clear Results";
     clearBtn.id = "clearResultsBtn";
@@ -40,25 +41,39 @@ Dropzone.options.invoiceDrop = {
       dz.removeAllFiles(true);
       clearBtn.style.display = "none";
       startBtn.style.display = "none";
-      dzElement.innerHTML = '<div class="dz-message">📄 Drag & Drop your invoice here</div>';
+      // Reset Dropzone text
+      const msg = dzElement.querySelector(".dz-message");
+      if (msg) msg.innerHTML = "📄 Drag & Drop your invoice here";
     });
 
-    // Upload progress message (now inside Dropzone box)
+    // Show upload progress message *inside* the Dropzone message area
     this.on("sending", function (file, xhr, formData) {
-      dzElement.innerHTML = `
-        <div style="padding:40px 0;text-align:center;
-        font-weight:600;color:#4e65ac;font-size:16px;">
-          ⏳ Uploading ${file.name} ...
-        </div>`;
+      const msg = dzElement.querySelector(".dz-message");
+      if (msg) {
+        msg.innerHTML = `
+          <div style="padding:40px 0;text-align:center;
+          font-weight:600;color:#4e65ac;font-size:16px;">
+            ⏳ Uploading ${file.name} ...
+          </div>`;
+      }
       formData.append("vatCategory", document.getElementById("vatCategory").value);
       formData.append("endUserConfirmed", document.getElementById("endUserConfirmed").value);
       formData.append("cisRate", document.getElementById("cisRate").value);
     });
 
-    // Upload success → restore Dropzone box + show file info + button
+    // Upload complete → restore Dropzone message + show Generate Report
     this.on("success", function (file, response) {
       dz.uploadResponse = response;
-      dzElement.innerHTML = '<div class="dz-message">✅ File uploaded successfully</div>';
+
+      const msg = dzElement.querySelector(".dz-message");
+      if (msg) {
+        msg.innerHTML = `
+          <div style="padding:40px 0;text-align:center;
+          font-weight:600;color:#4e65ac;font-size:16px;">
+            ✅ File uploaded successfully
+          </div>`;
+      }
+
       actorsDiv.innerHTML = `
         <div class="actor"><span style="color:#4e65ac;font-size:17px;font-weight:600;">
           Uploader:</span> ${file.name}</div>
@@ -71,10 +86,11 @@ Dropzone.options.invoiceDrop = {
     // Error handling
     this.on("error", (file, err) => {
       alert("Upload failed: " + err);
-      dzElement.innerHTML = '<div class="dz-message">📄 Drag & Drop your invoice here</div>';
+      const msg = dzElement.querySelector(".dz-message");
+      if (msg) msg.innerHTML = "📄 Drag & Drop your invoice here";
     });
 
-    // Generate Report (placeholder)
+    // Placeholder Generate Report
     startBtn.addEventListener("click", () => {
       startBtn.disabled = true;
       startBtn.textContent = "Generating Report…";
