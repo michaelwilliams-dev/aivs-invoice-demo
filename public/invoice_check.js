@@ -1,11 +1,11 @@
 /**
  * AIVS Invoice Compliance Checker · Frontend Logic
- * ISO Timestamp: 2025-11-11T17:05:00Z
+ * ISO Timestamp: 2025-11-11T18:10:00Z
  * Author: AIVS Software Limited
  * Brand Colour: #4e65ac
  * Description:
- * Compact one-file Dropzone with clear in-box upload message
- * and follow-up compliance button.
+ * Compact 80 px upload box showing its own live messages,
+ * then replacing them with Uploader / Parser info once done.
  */
 
 Dropzone.autoDiscover = false;
@@ -18,87 +18,80 @@ const dz = new Dropzone("#invoiceDrop", {
   autoProcessQueue: true,
   addRemoveLinks: false,
   dictDefaultMessage: "📄 Drop or click to upload invoice",
+
   init: function () {
     const dzInstance = this;
     const dzElement  = document.getElementById("invoiceDrop");
-    const actorsDiv  = document.getElementById("actors");
     const startBtn   = document.getElementById("startCheckBtn");
+    const actorsDiv  = document.getElementById("actors");
+
     startBtn.style.display = "none";
 
-    // Ensure compact height
+    // compact fixed height
     dzElement.style.height = "80px";
     dzElement.style.minHeight = "80px";
     dzElement.style.position = "relative";
     dzElement.style.overflow = "hidden";
 
-    // Overlay message element
+    // create inner message layer
     const overlay = document.createElement("div");
     overlay.id = "uploadOverlay";
     overlay.style.cssText = `
       position:absolute;
       inset:0;
       display:flex;
+      flex-direction:column;
       align-items:center;
       justify-content:center;
-      background:rgba(255,255,255,0.8);
+      background:#fff;
       color:#4e65ac;
       font-weight:600;
       font-size:14px;
+      text-align:center;
       z-index:10;
-      visibility:hidden;
+      transition:opacity 0.3s ease;
     `;
+    overlay.textContent = "📄 Drop or click to upload invoice";
     dzElement.appendChild(overlay);
 
-    // --- When sending (start upload) --------------------------------------
+    // ---- sending (start upload) ------------------------------------------
     dzInstance.on("sending", (file, xhr, formData) => {
-      overlay.textContent = `⏳ Uploading ${file.name} …`;
-      overlay.style.visibility = "visible";
+      overlay.innerHTML = `⏳ Uploading<br>${file.name}`;
       formData.append("vatCategory", document.getElementById("vatCategory").value);
       formData.append("endUserConfirmed", document.getElementById("endUserConfirmed").value);
       formData.append("cisRate", document.getElementById("cisRate").value);
     });
 
-    // --- Progress update --------------------------------------------------
-    dzInstance.on("uploadprogress", (file, progress) => {
-      overlay.textContent = `⏳ Uploading ${file.name} – ${progress.toFixed(0)} %`;
-    });
-
-    // --- Success ----------------------------------------------------------
+    // ---- success ----------------------------------------------------------
     dzInstance.on("success", (file, response) => {
-      overlay.textContent = `✅ ${file.name} uploaded successfully`;
-      setTimeout(() => { overlay.style.visibility = "hidden"; }, 1000);
-
-      actorsDiv.innerHTML = `
-        <div class="actor"><span style="color:#4e65ac;font-size:16px;font-weight:600;">
-          Uploader:</span> ${file.name}</div>
-        <div class="actor"><span style="color:#4e65ac;font-size:16px;font-weight:600;">
-          Parser:</span> ${response.parserNote || "Invoice parsed successfully."}</div>`;
+      // Replace overlay content with Uploader + Parser lines inside the same box
+      overlay.innerHTML = `
+        <div><strong style="color:#4e65ac;">Uploader:</strong> ${file.name}</div>
+        <div><strong style="color:#4e65ac;">Parser:</strong> ${response.parserNote || "File parsed successfully."}</div>
+      `;
       startBtn.style.display = "block";
     });
 
-    // --- Error ------------------------------------------------------------
+    // ---- error ------------------------------------------------------------
     dzInstance.on("error", (file, err) => {
-      overlay.textContent = `❌ Upload failed – ${err}`;
-      setTimeout(() => { overlay.style.visibility = "hidden"; }, 2000);
+      overlay.innerHTML = `<span style="color:#c0392b;">❌ Upload failed – ${err}</span>`;
     });
 
-    // --- Enforce single file ---------------------------------------------
+    // ---- enforce single file ---------------------------------------------
     dzInstance.on("addedfile", () => {
       if (dzInstance.files.length > 1) dzInstance.removeFile(dzInstance.files[0]);
     });
 
-    // --- Start Compliance Check (demo placeholder) ------------------------
+    // ---- Start Compliance Check (demo placeholder) ------------------------
     startBtn.addEventListener("click", () => {
       startBtn.disabled = true;
       startBtn.textContent = "Generating Report…";
-      actorsDiv.insertAdjacentHTML(
-        "beforeend",
-        `<div style="padding:12px;color:#4e65ac;font-weight:600;">⚙️ Generating report…</div>`
-      );
+      actorsDiv.innerHTML = `
+        <div style="padding:15px;color:#4e65ac;font-weight:600;">⚙️ Generating report…</div>`;
       setTimeout(() => {
         actorsDiv.insertAdjacentHTML(
           "beforeend",
-          `<div style="padding:12px;color:#333;">✅ Report ready (demo placeholder)</div>`
+          `<div style="padding:15px;color:#333;">✅ Report ready (demo placeholder)</div>`
         );
         startBtn.disabled = false;
         startBtn.textContent = "▶ Start Compliance Check";
