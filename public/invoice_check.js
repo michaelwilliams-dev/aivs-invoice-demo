@@ -1,11 +1,11 @@
 /**
  * AIVS Invoice Compliance Checker · Frontend Logic
- * ISO Timestamp: 2025-11-11T19:30:00Z
+ * ISO Timestamp: 2025-11-11T18:10:00Z
  * Author: AIVS Software Limited
  * Brand Colour: #4e65ac
  * Description:
- * One-step upload → AI compliance report.
- * Shows “Uploading…” in-box, then Uploader / Parser + AI report automatically.
+ * Compact 80 px upload box showing its own live messages,
+ * then replacing them with Uploader / Parser info once done.
  */
 
 Dropzone.autoDiscover = false;
@@ -24,13 +24,13 @@ const dz = new Dropzone("#invoiceDrop", {
     const dzElement  = document.getElementById("invoiceDrop");
     const actorsDiv  = document.getElementById("actors");
 
-    // compact box
+    // compact fixed height
     dzElement.style.height = "80px";
     dzElement.style.minHeight = "80px";
     dzElement.style.position = "relative";
     dzElement.style.overflow = "hidden";
 
-    // overlay message layer
+    // create inner message layer
     const overlay = document.createElement("div");
     overlay.id = "uploadOverlay";
     overlay.style.cssText = `
@@ -46,11 +46,12 @@ const dz = new Dropzone("#invoiceDrop", {
       font-size:14px;
       text-align:center;
       z-index:10;
+      transition:opacity 0.3s ease;
     `;
     overlay.textContent = "📄 Drop or click to upload invoice";
     dzElement.appendChild(overlay);
 
-    // ---- start upload -----------------------------------------------------
+    // ---- sending (start upload) ------------------------------------------
     dzInstance.on("sending", (file, xhr, formData) => {
       overlay.innerHTML = `⏳ Uploading<br>${file.name}`;
       formData.append("vatCategory", document.getElementById("vatCategory").value);
@@ -58,33 +59,42 @@ const dz = new Dropzone("#invoiceDrop", {
       formData.append("cisRate", document.getElementById("cisRate").value);
     });
 
-    // ---- upload success → display report automatically -------------------
+    // ---- success ----------------------------------------------------------
     dzInstance.on("success", (file, response) => {
-      // confirmation inside box
+      // Replace overlay content with Uploader + Parser lines inside the same box
       overlay.innerHTML = `
         <div><strong style="color:#4e65ac;">Uploader:</strong> ${file.name}</div>
-        <div><strong style="color:#4e65ac;">Parser:</strong> ${
-          response.parserNote || "Invoice parsed successfully."
-        }</div>
+        <div><strong style="color:#4e65ac;">Parser:</strong> ${response.parserNote || "File parsed successfully."}</div>
       `;
 
-      // show AI report below
+      // --- Build readable AI report ------------------------------------
       let formattedAI = "";
-      if (response.aiReply) {
+
+      if (response.vat_check || response.cis_check || response.required_wording) {
         formattedAI = `
-          <div class="actor">
-            <h3 style="color:#4e65ac;font-size:16px;font-weight:600;margin-bottom:6px;">
+          <div style="padding:8px;">
+            <h3 style="color:#4e65ac;font-size:16px;font-weight:600;margin-bottom:8px;">
               AI Compliance Report
             </h3>
-            <div style="white-space:pre-wrap;font-size:14px;line-height:1.5;color:#333;">
-              ${response.aiReply}
-            </div>
+            <p><strong>VAT / DRC Check:</strong><br>${response.vat_check || "—"}</p>
+            <p><strong>CIS Check:</strong><br>${response.cis_check || "—"}</p>
+            <p><strong>Required Wording:</strong><br>${response.required_wording || "—"}</p>
+            <p><strong>Summary:</strong><br>${response.summary || "—"}</p>
           </div>`;
-      } else if (response.error) {
-        formattedAI = `
-          <div style="padding:10px;color:#c0392b;">
-            ❌ ${response.error}
+      }
+
+      if (response.corrected_invoice) {
+        formattedAI += `
+          <div style="margin-top:12px;">
+            <h4 style="color:#4e65ac;margin-bottom:6px;">Corrected Invoice Preview</h4>
+            ${response.corrected_invoice}
           </div>`;
+      }
+
+      if (!formattedAI) {
+        formattedAI = `<pre style="white-space:pre-wrap;font-size:13px;color:#333;">
+${JSON.stringify(response, null, 2)}
+</pre>`;
       }
 
       actorsDiv.innerHTML = `
@@ -100,7 +110,7 @@ const dz = new Dropzone("#invoiceDrop", {
       overlay.innerHTML = `<span style="color:#c0392b;">❌ Upload failed – ${err}</span>`;
     });
 
-    // ---- single file only -------------------------------------------------
+    // ---- enforce single file ---------------------------------------------
     dzInstance.on("addedfile", () => {
       if (dzInstance.files.length > 1) dzInstance.removeFile(dzInstance.files[0]);
     });
