@@ -154,6 +154,21 @@ const mailjet = Mailjet.apiConnect(
 
 export async function sendReportEmail(to, ccList, docPath, pdfPath, timestamp) {
   try {
+    // clean and filter addresses
+    const recipients = [to, ...(ccList || [])]
+      .map(e => (e || "").trim())
+      .filter(e => e.length > 0);
+
+    // if no valid addresses, skip sending
+    if (recipients.length === 0) {
+      console.log("📭 No valid recipient addresses; skipping Mailjet send.");
+      return;
+    }
+
+    // first address is 'To', remainder are 'Cc'
+    const mainTo = recipients.shift();
+    const ccArray = recipients.map(e => ({ Email: e }));
+
     const attachments = [
       {
         ContentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -171,8 +186,8 @@ export async function sendReportEmail(to, ccList, docPath, pdfPath, timestamp) {
       Messages: [
         {
           From: { Email: "noreply@aivs.uk", Name: "AIVS Invoice Checker" },
-          To: [{ Email: to }],
-          Cc: ccList.filter(Boolean).map((e) => ({ Email: e })),
+          To: [{ Email: mainTo }],
+          Cc: ccArray,
           Subject: `AIVS Invoice Compliance Report · ${timestamp}`,
           HTMLPart: `
             <h3>Invoice Compliance Report – ${timestamp}</h3>
