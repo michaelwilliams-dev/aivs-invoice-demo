@@ -1,14 +1,15 @@
 /**
  * AIVS Invoice Compliance Checker · Frontend Logic
- * ISO Timestamp: 2025-11-11T20:15:00Z
+ * ISO Timestamp: 2025-11-12T08:00:00Z
  * Author: AIVS Software Limited
  * Brand Colour: #4e65ac
  * Description:
- * Compact 80 px upload box showing its own live messages,
- * then replacing them with Uploader / Parser info once done.
+ * Adds upload lock — user must press Clear before next upload.
  */
 
 Dropzone.autoDiscover = false;
+
+let uploadAllowed = true; // ✅ upload gatekeeper
 
 const dz = new Dropzone("#invoiceDrop", {
   url: "/check_invoice",
@@ -21,9 +22,9 @@ const dz = new Dropzone("#invoiceDrop", {
 
   init: function () {
     const dzInstance = this;
-    const dzElement  = document.getElementById("invoiceDrop");
-    const actorsDiv  = document.getElementById("actors");
-    const clearBtn   = document.getElementById("clearResultsBtn");
+    const dzElement = document.getElementById("invoiceDrop");
+    const actorsDiv = document.getElementById("actors");
+    const clearBtn = document.getElementById("clearResultsBtn");
 
     // hide Clear button at page load
     clearBtn.style.display = "none";
@@ -35,6 +36,7 @@ const dz = new Dropzone("#invoiceDrop", {
       const overlay = document.getElementById("uploadOverlay");
       if (overlay) overlay.innerHTML = "📄 Drop or click to upload invoice";
       clearBtn.style.display = "none";        // Hide button again
+      uploadAllowed = true;                   // ✅ re-enable upload
     });
 
     // compact fixed height
@@ -63,6 +65,38 @@ const dz = new Dropzone("#invoiceDrop", {
     `;
     overlay.textContent = "📄 Drop or click to upload invoice";
     dzElement.appendChild(overlay);
+
+    // ✅ Small transient warning message element
+    const warn = document.createElement("div");
+    warn.id = "uploadWarning";
+    warn.style.cssText = `
+      position:absolute;
+      bottom:4px;
+      width:100%;
+      text-align:center;
+      color:#c0392b;
+      font-size:13px;
+      font-weight:600;
+      opacity:0;
+      transition:opacity 0.4s ease;
+      pointer-events:none;
+    `;
+    dzElement.appendChild(warn);
+
+    function showWarning(msg) {
+      warn.textContent = msg;
+      warn.style.opacity = "1";
+      setTimeout(() => (warn.style.opacity = "0"), 2500);
+    }
+
+    // ✅ Upload lock — block new uploads until Clear is pressed
+    dzInstance.on("addedfile", function (file) {
+      if (!uploadAllowed) {
+        dzInstance.removeFile(file);
+        showWarning("Please clear results before uploading a new invoice.");
+        return false;
+      }
+    });
 
     // ---- sending (start upload) ----------------------------------------
     dzInstance.on("sending", (file, xhr, formData) => {
@@ -134,8 +168,8 @@ ${JSON.stringify(response, null, 2)}
           ${response.timestamp || "—"}
         </div>`;
 
-      // Show Clear button when report is ready
-      clearBtn.style.display = "inline-block";
+      clearBtn.style.display = "inline-block"; // ✅ show Clear
+      uploadAllowed = false; // ✅ lock until cleared
     });
 
     dzInstance.on("error", (file, err) => {
@@ -148,28 +182,6 @@ ${JSON.stringify(response, null, 2)}
   },
 });
 
-// ✅ NEW: Manual email send button logic
-document.getElementById("sendEmailBtn").addEventListener("click", async () => {
-  const payload = {
-    userEmail: document.getElementById("userEmail").value,
-    emailCopy1: document.getElementById("emailCopy1").value,
-    emailCopy2: document.getElementById("emailCopy2").value
-  };
-
-  try {
-    const res = await fetch("/send_email", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
-
-    const data = await res.json();
-    if (data.status === "email_sent") {
-      alert("✅ Emails sent successfully!");
-    } else {
-      alert("⚠️ Email not sent: " + (data.error || "Unknown error"));
-    }
-  } catch (err) {
-    alert("❌ Error sending emails: " + err.message);
-  }
-});
+// (Optional) Disable manual email button entirely if it's still in HTML
+// const sendEmailBtn = document.getElementById("sendEmailBtn");
+// if (sendEmailBtn) sendEmailBtn.style.display = "none";
