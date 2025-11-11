@@ -23,6 +23,9 @@ import { saveReportFiles, sendReportEmail } from "../../server.js";
 const router = express.Router();
 router.use(fileUpload());
 
+/* ✅ CHANGE ADDED — ensure non-file fields (email, VAT flags) are parsed */
+router.use(express.urlencoded({ extended: true }));
+
 router.post("/check_invoice", async (req, res) => {
   try {
     console.log("🟢 /check_invoice endpoint hit", req.files);
@@ -35,27 +38,30 @@ router.post("/check_invoice", async (req, res) => {
       cisRate: req.body.cisRate
     };
 
-    /* ▼▼▼  CHANGE START — replaced placeholder with real analysis  ▼▼▼ */
     const parsed = await parseInvoice(file.data);
     const aiReply = await analyseInvoice(parsed.text, flags);
-    console.log("🧾 AI reply returned:", aiReply);  // ✅ added debug line
-    /* ▲▲▲  CHANGE END   — replaced placeholder with real analysis  ▲▲▲ */
+    console.log("🧾 AI reply returned:", aiReply);
 
-    /* ▼▼▼  CHANGE START — generate and email report  ▼▼▼ */
     const { docPath, pdfPath, timestamp } = await saveReportFiles(aiReply);
+
+    // debug log to confirm addresses reach backend
+    console.log("📨 Email fields received:", req.body.userEmail, req.body.emailCopy1, req.body.emailCopy2);
+
     const to = req.body.userEmail;
     const ccList = [req.body.emailCopy1, req.body.emailCopy2];
     await sendReportEmail(to, ccList, docPath, pdfPath, timestamp);
-    /* ▲▲▲  CHANGE END   — generate and email report  ▲▲▲ */
 
     res.json({
       parserNote: parsed.parserNote,
       aiReply,
       timestamp: new Date().toISOString()
     });
+
+    return; // ✅ added explicit return
   } catch (err) {
     console.error("❌ /check_invoice error:", err.message);
     res.status(500).json({ error: err.message, timestamp: new Date().toISOString() });
+    return; // ✅ added explicit return
   }
 });
 
