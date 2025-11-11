@@ -95,7 +95,7 @@ export async function saveReportFiles(aiReply) {
         new Paragraph({ text: `Required Wording: ${aiReply.required_wording || "—"}` }),
         new Paragraph({ text: `Summary: ${aiReply.summary || "—"}` }),
 
-        // ✅ NEW — formatted corrected invoice section
+        // ✅ UPDATED — Corrected invoice now preserves line breaks
         ...(aiReply.corrected_invoice
           ? [
               new Paragraph({
@@ -110,18 +110,22 @@ export async function saveReportFiles(aiReply) {
                 spacing: { before: 240, after: 120 },
               }),
               new Paragraph({
-                children: [
-                  new TextRun({
-                    text: aiReply.corrected_invoice
-                      .replace(/<\/(div|p|tr)>/gi, "\n")   // keep visual breaks
-                      .replace(/<\/td>/gi, " | ")          // simulate table cells
-                      .replace(/<[^>]+>/g, "")             // remove tags
-                      .replace(/\s{2,}/g, " ")
-                      .replace(/\n{2,}/g, "\n")
-                      .trim(),
-                    size: 22,
-                  }),
-                ],
+                children: aiReply.corrected_invoice
+                  .replace(/<\/(div|p|tr|h[1-6])>/gi, "\n")
+                  .replace(/<\/td>/gi, " | ")
+                  .replace(/<br\s*\/?>/gi, "\n")
+                  .replace(/<[^>]+>/g, "")
+                  .replace(/\s{2,}/g, " ")
+                  .replace(/\n{2,}/g, "\n")
+                  .trim()
+                  .split("\n")
+                  .map(line =>
+                    new TextRun({
+                      text: line.trim(),
+                      break: 1,      // 👈 actual visible line break
+                      size: 22,
+                    })
+                  ),
                 spacing: { after: 200 },
               }),
             ]
