@@ -16,6 +16,10 @@ import fileUpload from "express-fileupload";
 import { parseInvoice, analyseInvoice } from "../invoice_tools.js";
 /* ▲▲▲  CHANGE END   — added import to reconnect full analysis loop  ▲▲▲ */
 
+/* ▼▼▼  CHANGE START — import helpers for report + email  ▼▼▼ */
+import { saveReportFiles, sendReportEmail } from "../../server.js";
+/* ▲▲▲  CHANGE END   — import helpers for report + email  ▲▲▲ */
+
 const router = express.Router();
 router.use(fileUpload());
 
@@ -36,6 +40,13 @@ router.post("/check_invoice", async (req, res) => {
     const aiReply = await analyseInvoice(parsed.text, flags);
     console.log("🧾 AI reply returned:", aiReply);  // ✅ added debug line
     /* ▲▲▲  CHANGE END   — replaced placeholder with real analysis  ▲▲▲ */
+
+    /* ▼▼▼  CHANGE START — generate and email report  ▼▼▼ */
+    const { docPath, pdfPath, timestamp } = await saveReportFiles(aiReply);
+    const to = req.body.userEmail;
+    const ccList = [req.body.emailCopy1, req.body.emailCopy2];
+    await sendReportEmail(to, ccList, docPath, pdfPath, timestamp);
+    /* ▲▲▲  CHANGE END   — generate and email report  ▲▲▲ */
 
     res.json({
       parserNote: parsed.parserNote,
