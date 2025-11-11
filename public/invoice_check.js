@@ -25,9 +25,8 @@ const dz = new Dropzone("#invoiceDrop", {
     const actorsDiv  = document.getElementById("actors");
     const clearBtn   = document.getElementById("clearResultsBtn");
 
-    // --- NEW: quick diagnostic and visibility test -----------------------
-    console.log("Clear button reference:", clearBtn);
-    clearBtn.style.display = "block";  // temporary test to confirm visibility
+    // hide Clear button at page load
+    clearBtn.style.display = "none";
 
     // --- Clear Results button logic -------------------------------------
     clearBtn.addEventListener("click", () => {
@@ -75,7 +74,6 @@ const dz = new Dropzone("#invoiceDrop", {
 
     // ---- success --------------------------------------------------------
     dzInstance.on("success", (file, response) => {
-      // Replace overlay content with Uploader + Parser lines inside the same box
       overlay.innerHTML = `
         <div><strong style="color:#4e65ac;">Uploader:</strong> ${file.name}</div>
         <div><strong style="color:#4e65ac;">Parser:</strong> ${
@@ -83,9 +81,8 @@ const dz = new Dropzone("#invoiceDrop", {
         }</div>
       `;
 
-      // --- Build readable AI report ------------------------------------
       let formattedAI = "";
-      const r = response.aiReply || response; // handle nested or flat response
+      const r = response.aiReply || response;
 
       if (r.vat_check || r.cis_check || r.required_wording || r.summary) {
         formattedAI = `
@@ -100,7 +97,6 @@ const dz = new Dropzone("#invoiceDrop", {
           </div>`;
       }
 
-      // ---- Added banner above corrected invoice ------------------------
       if (r.corrected_invoice) {
         formattedAI += `
           <div style="margin-top:12px;">
@@ -134,16 +130,14 @@ ${JSON.stringify(response, null, 2)}
           ${response.timestamp || "—"}
         </div>`;
 
-      // Show Clear button
+      // Show Clear button when report is ready
       clearBtn.style.display = "inline-block";
     });
 
-    // ---- error ----------------------------------------------------------
     dzInstance.on("error", (file, err) => {
       overlay.innerHTML = `<span style="color:#c0392b;">❌ Upload failed – ${err}</span>`;
     });
 
-    // ---- enforce single file -------------------------------------------
     dzInstance.on("addedfile", () => {
       if (dzInstance.files.length > 1) dzInstance.removeFile(dzInstance.files[0]);
     });
