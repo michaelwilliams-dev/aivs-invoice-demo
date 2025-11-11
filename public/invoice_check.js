@@ -82,20 +82,60 @@ const dz = new Dropzone("#invoiceDrop", {
       if (dzInstance.files.length > 1) dzInstance.removeFile(dzInstance.files[0]);
     });
 
-    // ---- Start Compliance Check (demo placeholder) ------------------------
-    startBtn.addEventListener("click", () => {
+    // ---- Start Compliance Check (real backend report) ---------------------
+    startBtn.addEventListener("click", async () => {
       startBtn.disabled = true;
       startBtn.textContent = "Generating Report…";
+
       actorsDiv.innerHTML = `
-        <div style="padding:15px;color:#4e65ac;font-weight:600;">⚙️ Generating report…</div>`;
-      setTimeout(() => {
-        actorsDiv.insertAdjacentHTML(
-          "beforeend",
-          `<div style="padding:15px;color:#333;">✅ Report ready (demo placeholder)</div>`
-        );
-        startBtn.disabled = false;
-        startBtn.textContent = "▶ Start Compliance Check";
-      }, 2000);
+        <div style="padding:15px;color:#4e65ac;font-weight:600;">
+          ⚙️ Generating compliance report…
+        </div>`;
+
+      try {
+        const res = await fetch("/check_invoice", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            mode: "generateReport",
+            filename: dz.files[0]?.name || "",
+          }),
+        });
+
+        const data = await res.json();
+
+        if (data.aiReply) {
+          actorsDiv.innerHTML = `
+            <div class="actor">
+              <h3 style="color:#4e65ac;font-size:16px;font-weight:600;margin-bottom:6px;">
+                AI Compliance Report
+              </h3>
+              <div style="white-space:pre-wrap;font-size:14px;line-height:1.5;color:#333;">
+                ${data.aiReply}
+              </div>
+            </div>
+            <div class="actor" style="margin-top:10px;">
+              <span style="color:#4e65ac;font-weight:600;">Response Time:</span>
+              ${data.timestamp || "—"}
+            </div>`;
+        } else {
+          actorsDiv.innerHTML = `
+            <div style="padding:15px;color:#c0392b;">
+              ⚠️ No AI reply field found. Raw response:<br>
+              <pre style="white-space:pre-wrap;font-size:13px;color:#333;">
+${JSON.stringify(data, null, 2)}
+              </pre>
+            </div>`;
+        }
+      } catch (err) {
+        actorsDiv.innerHTML = `
+          <div style="padding:15px;color:#c0392b;">
+            ❌ Error generating report: ${err.message}
+          </div>`;
+      }
+
+      startBtn.disabled = false;
+      startBtn.textContent = "▶ Start Compliance Check";
     });
   },
 });
