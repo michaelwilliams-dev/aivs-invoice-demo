@@ -1,6 +1,6 @@
 /**
  * AIVS Invoice Compliance Checker · Stand-Alone Service
- * ISO Timestamp: 2025-11-11T16:15:00Z
+ * ISO Timestamp: 2025-11-12T00:10:00Z
  * Author: AIVS Software Limited
  * Brand Colour: #4e65ac
  */
@@ -10,11 +10,8 @@ import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
 import checkInvoiceRoute from "./backoffice/routes/check_invoice.js";
-import sendEmailRoute from "./backoffice/routes/send_email.js";   // ✅ added route import
+import sendEmailRoute from "./backoffice/routes/send_email.js";
 
-// ----------------------------------------------------
-// Initialise
-// ----------------------------------------------------
 console.log("🔧 Booting AIVS Invoice Checker server …");
 
 // Node ESM path setup
@@ -23,47 +20,37 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 
-// ----------------------------------------------------
 // Middleware
-// ----------------------------------------------------
 app.use(
   cors({
     origin: [
       "https://invoice-checker-0miv.onrender.com",
       "http://invoice-checker-0miv.onrender.com",
       "https://assistants.aivs.uk",
-      "https://property-assistant-plus.onrender.com"
+      "https://property-assistant-plus.onrender.com",
     ],
   })
 );
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ----------------------------------------------------
-// Static files and routes
-// ----------------------------------------------------
+// Static + Routes
 app.use(express.static(path.join(__dirname, "public")));
 app.use("/", checkInvoiceRoute);
-app.use("/", sendEmailRoute);   // ✅ register new email route
+app.use("/", sendEmailRoute);
 
-// ----------------------------------------------------
-// Start server (Render supplies PORT env var)
-// ----------------------------------------------------
+// Start server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`✅ AIVS Invoice Checker running on port ${PORT}`);
 });
 
-// ----------------------------------------------------
-// AIVS Security Guard: prevent raw invoice uploads to OpenAI
-// ----------------------------------------------------
+// Security guard
 import fs from "fs";
-
 function safeForAI(input) {
   const hasBinary = Buffer.isBuffer(input);
   const isLarge = typeof input === "string" && input.length > 20000;
   const looksLikeFile = /%PDF|PK\x03\x04|<xml/i.test(input);
-
   if (hasBinary || isLarge || looksLikeFile) {
     console.warn("🚫 BLOCKED: attempt to send raw file data to OpenAI prevented");
     return false;
@@ -76,8 +63,6 @@ async function askOpenAI(prompt) {
     throw new Error("Unsafe input blocked — raw invoice data must not leave server");
   }
   console.log("✅ OK: sending clean text to OpenAI");
-  // place your actual OpenAI call here
-  // const response = await openai.chat.completions.create({...});
 }
 
 // ----------------------------------------------------
@@ -109,6 +94,36 @@ export async function saveReportFiles(aiReply) {
         new Paragraph({ text: `CIS Check: ${aiReply.cis_check || "—"}` }),
         new Paragraph({ text: `Required Wording: ${aiReply.required_wording || "—"}` }),
         new Paragraph({ text: `Summary: ${aiReply.summary || "—"}` }),
+
+        // ✅ NEW — include corrected invoice text (stripped HTML)
+        ...(aiReply.corrected_invoice
+          ? [
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text: "\nCorrected Invoice Preview:",
+                    bold: true,
+                    color: "4e65ac",
+                    size: 28,
+                  }),
+                ],
+                spacing: { before: 240, after: 120 },
+              }),
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text: aiReply.corrected_invoice
+                      .replace(/<[^>]+>/g, "")
+                      .replace(/\s{2,}/g, " ")
+                      .trim(),
+                    size: 22,
+                  }),
+                ],
+                spacing: { after: 200 },
+              }),
+            ]
+          : []),
+
         new Paragraph({
           text: "\n--- End of report ---\n© AIVS Software Limited",
           italics: true,
@@ -134,7 +149,6 @@ export async function saveReportFiles(aiReply) {
   pdf.fontSize(11).text(JSON.stringify(aiReply, null, 2));
   pdf.end();
 
-  // ✅ wait for PDF file to finish writing before continuing
   await new Promise((resolve, reject) => {
     stream.on("finish", resolve);
     stream.on("error", reject);
@@ -156,18 +170,15 @@ const mailjet = Mailjet.apiConnect(
 
 export async function sendReportEmail(to, ccList, docPath, pdfPath, timestamp) {
   try {
-    // clean and filter addresses
     const recipients = [to, ...(ccList || [])]
       .map(e => (e || "").trim())
       .filter(e => e.length > 0);
 
-    // if no valid addresses, skip sending
     if (recipients.length === 0) {
       console.log("📭 No valid recipient addresses; skipping Mailjet send.");
       return;
     }
 
-    // first address is 'To', remainder are 'Cc'
     const mainTo = recipients.shift();
     const ccArray = recipients.map(e => ({ Email: e }));
 
