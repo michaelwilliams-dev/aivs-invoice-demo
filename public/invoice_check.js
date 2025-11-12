@@ -1,9 +1,12 @@
+
 /**
  * AIVS Invoice Compliance Checker · Frontend Logic
- * ISO Timestamp: 2025-11-12T11:22:00Z
+ * ISO Timestamp: 2025-11-12T08:00:00Z
+ * ISO Timestamp: 2025-11-12T09:45:00Z
  * Author: AIVS Software Limited
  * Brand Colour: #4e65ac
  * Description:
+ * Adds upload lock — user must press Clear before next upload.
  * Adds upload lock — user must press Clear before next upload,
  * hides uploader when report arrives, shows framed summary box.
  */
@@ -26,10 +29,6 @@ const dz = new Dropzone("#invoiceDrop", {
     const dzElement = document.getElementById("invoiceDrop");
     const actorsDiv = document.getElementById("actors");
     const clearBtn = document.getElementById("clearResultsBtn");
-
-    // ✅ keep Dropzone above other panels for drag events
-    dzElement.style.position = "relative";
-    dzElement.style.zIndex = "999"; // higher than nearby boxes
 
     // ✅ create framed status box for uploader/parser
     const statusBox = document.createElement("div");
@@ -64,9 +63,10 @@ const dz = new Dropzone("#invoiceDrop", {
       statusBox.style.display = "none";       // ✅ hide summary frame
     });
 
-    // ❌ remove inline 80px sizing — let CSS min-height (180px) handle area
-    // dzElement.style.height = "80px";
-    // dzElement.style.minHeight = "80px";
+    // compact fixed height
+    dzElement.style.height = "80px";
+    dzElement.style.minHeight = "80px";
+    dzElement.style.position = "relative";
     dzElement.style.overflow = "hidden";
 
     // create inner message layer
@@ -84,15 +84,12 @@ const dz = new Dropzone("#invoiceDrop", {
       font-weight:600;
       font-size:14px;
       text-align:center;
-      z-index:0;                 /* sit below Dropzone for drag events */
+      z-index:10;
       transition:opacity 0.3s ease;
     `;
     overlay.textContent = "📄 Drop or click to upload invoice";
     dzElement.appendChild(overlay);
-    // ✅ Ensure overlay never blocks drag or click events
-    overlay.style.pointerEvents = "none";
-    overlay.style.zIndex = "0";
-    dzElement.style.zIndex = "10";
+
     // ✅ Small transient warning message element
     const warn = document.createElement("div");
     warn.id = "uploadWarning";
@@ -123,10 +120,6 @@ const dz = new Dropzone("#invoiceDrop", {
         showWarning("Please clear results before uploading a new invoice.");
         return false;
       }
-      // enforce single-file rule safely
-      if (dzInstance.files.length > 1) {
-        dzInstance.removeFile(dzInstance.files[0]);
-      }
     });
 
     // ---- sending (start upload) ----------------------------------------
@@ -135,7 +128,7 @@ const dz = new Dropzone("#invoiceDrop", {
       formData.append("vatCategory", document.getElementById("vatCategory").value);
       formData.append("endUserConfirmed", document.getElementById("endUserConfirmed").value);
       formData.append("cisRate", document.getElementById("cisRate").value);
-      // include email addresses for backend Mailjet send
+      // --- include email addresses for backend Mailjet send ---------------
       formData.append("userEmail", document.getElementById("userEmail").value);
       formData.append("emailCopy1", document.getElementById("emailCopy1").value);
       formData.append("emailCopy2", document.getElementById("emailCopy2").value);
@@ -143,7 +136,10 @@ const dz = new Dropzone("#invoiceDrop", {
 
     // ---- success --------------------------------------------------------
     dzInstance.on("success", (file, response) => {
-      // show framed summary instead of keeping overlay
+      overlay.innerHTML = `
+        <div><strong style="color:#4e65ac;">Uploader:</strong> ${file.name}</div>
+        <div><strong style="color:#4e65ac;">Parser:</strong> ${
+      // ✅ show framed summary instead of keeping overlay
       statusBox.innerHTML = `
         <div><strong style="color:#4e65ac;">UPLOADER:</strong> ${file.name}</div>
         <div><strong style="color:#4e65ac;">PARSER:</strong> ${
@@ -202,12 +198,17 @@ ${JSON.stringify(response, null, 2)}
           ${response.timestamp || "—"}
         </div>`;
 
-      clearBtn.style.display = "inline-block"; // show Clear
-      uploadAllowed = false;                   // lock until cleared
+      clearBtn.style.display = "inline-block"; // ✅ show Clear
+      uploadAllowed = false; // ✅ lock until cleared
+      uploadAllowed = false;                   // ✅ lock until cleared
     });
 
     dzInstance.on("error", (file, err) => {
       overlay.innerHTML = `<span style="color:#c0392b;">❌ Upload failed – ${err}</span>`;
+    });
+
+    dzInstance.on("addedfile", () => {
+      if (dzInstance.files.length > 1) dzInstance.removeFile(dzInstance.files[0]);
     });
   },
 });
