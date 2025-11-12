@@ -31,7 +31,7 @@ const dz = new Dropzone("#invoiceDrop", {
         actorsDiv.innerHTML = "";
         dzInstance.removeAllFiles(true);
         const overlay = document.getElementById("uploadOverlay");
-        if (overlay) overlay.innerHTML = "📄 Drop or click to upload invoice";
+        if (overlay) overlay.innerHTML = "📄 Drop file here  to upload invoice - accepted files: pdf jpg png json";
         clearBtn.style.display = "none";
       });
     }
