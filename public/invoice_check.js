@@ -89,8 +89,10 @@ const dz = new Dropzone("#invoiceDrop", {
     `;
     overlay.textContent = "📄 Drop or click to upload invoice";
     dzElement.appendChild(overlay);
-    overlay.style.pointerEvents = "none";     // ✅ let drag/click pass through
-
+    // ✅ Ensure overlay never blocks drag or click events
+    overlay.style.pointerEvents = "none";
+    overlay.style.zIndex = "0";
+    dzElement.style.zIndex = "10";
     // ✅ Small transient warning message element
     const warn = document.createElement("div");
     warn.id = "uploadWarning";
