@@ -1,12 +1,13 @@
 /**
  * AIVS Invoice Compliance Checker · Frontend Logic
- * ISO Timestamp: 2025-11-11T19:50:00Z
+ * ISO Timestamp: 2025-11-13T08:00:00Z
  * Author: AIVS Software Limited
  * Brand Colour: #4e65ac
  * Description:
  * Compact 80 px upload box showing its own live messages,
  * then replacing them with Uploader / Parser info once done.
  * Automatically sends emails if fields are filled.
+ * Clears screen by refreshing the page.
  */
 
 Dropzone.autoDiscover = false;
@@ -18,7 +19,7 @@ const dz = new Dropzone("#invoiceDrop", {
   acceptedFiles: ".pdf,.jpg,.png,.json",
   autoProcessQueue: true,
   addRemoveLinks: false,
-  dictDefaultMessage: "📄 Drop file here  to upload invoice - accepted files: pdf jpg png json",
+  dictDefaultMessage: "📄 Drop file here to upload invoice - accepted files: pdf jpg png json",
 
   init: function () {
     const dzInstance = this;
@@ -29,11 +30,7 @@ const dz = new Dropzone("#invoiceDrop", {
     // --- Clear Results button logic -------------------------------------
     if (clearBtn) {
       clearBtn.addEventListener("click", () => {
-        actorsDiv.innerHTML = "";
-        dzInstance.removeAllFiles(true);
-        const overlay = document.getElementById("uploadOverlay");
-        if (overlay) overlay.innerHTML = "📄 Drop file here  to upload invoice - accepted files: pdf jpg png json";
-        clearBtn.style.display = "none";
+        location.reload(); // 🔄 full page refresh resets Dropzone + screen safely
       });
     }
 
