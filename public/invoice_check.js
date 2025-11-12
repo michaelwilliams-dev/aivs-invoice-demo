@@ -142,3 +142,36 @@ ${JSON.stringify(response, null, 2)}
     });
   },
 });
+
+// --- Manual Send Email Button ----------------------------------------
+document.addEventListener("DOMContentLoaded", () => {
+  const sendBtn = document.getElementById("sendEmailBtn");
+  if (!sendBtn) return;
+
+  sendBtn.addEventListener("click", async () => {
+    const userEmail  = document.getElementById("userEmail")?.value.trim();
+    const emailCopy1 = document.getElementById("emailCopy1")?.value.trim();
+    const emailCopy2 = document.getElementById("emailCopy2")?.value.trim();
+
+    if (!userEmail) {
+      alert("Please enter at least one recipient email address before sending.");
+      return;
+    }
+
+    try {
+      const res = await fetch("/send_email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userEmail, emailCopy1, emailCopy2 }),
+      });
+      const data = await res.json();
+      if (data.status === "email_sent") {
+        alert("✅ Email sent successfully!");
+      } else {
+        alert("⚠️ Email not sent: " + (data.error || "Unknown error"));
+      }
+    } catch (err) {
+      alert("❌ Failed to send email: " + err.message);
+    }
+  });
+});
