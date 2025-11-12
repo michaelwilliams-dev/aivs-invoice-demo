@@ -1,10 +1,11 @@
 <!--
 AIVS CIS Compliance Checker · HTML Frontend
-ISO Timestamp: 2025-11-11T22:55:00Z
+ISO Timestamp: 2025-11-12T10:00:00Z
 Author: AIVS Software Limited
 Brand Colour: #4e65ac
 Description:
-Single-step upload + automatic AI compliance report generation.
+Single-step upload + automatic AI compliance report generation,
+now includes a session file list and Refresh Page button.
 -->
 <!DOCTYPE html>
 <html lang="en">
@@ -42,25 +43,26 @@ label{
   font-weight:600;
   color:var(--aivs-blue);
 }
+
 select,input{
   font-family:inherit;
 }
+
 select {
   width:260px;
   padding:8px 10px;
   border:1.5px solid var(--aivs-blue);
-  border-radius:0;              /* ← keeps square corners */
+  border-radius:0;
   background:#fff;
   color:var(--aivs-blue);
   font-weight:600;
   font-size:14px;
-  font-family:inherit;
-  appearance:none;              /* ← removes native rounded dropdown styling */
-  -webkit-appearance:none;      /* ← Safari fix */
-  -moz-appearance:none;         /* ← Firefox fix */
+  appearance:none;
+  -webkit-appearance:none;
+  -moz-appearance:none;
   background-image:url("data:image/svg+xml;charset=US-ASCII,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath fill='%234e65ac' d='M0 0l4 5 4-5z'/%3E%3C/svg%3E");
   background-repeat:no-repeat;
-  background-position:right 10px center; /* adds subtle dropdown arrow */
+  background-position:right 10px center;
   background-size:8px 5px;
 }
 
@@ -69,6 +71,7 @@ select:focus, select:hover {
   box-shadow:0 0 0 1px var(--aivs-blue) inset;
   outline:none;
 }
+
 /* --- Dropzone styling ------------------------------------------------ */
 .dropzone{
   border:3px solid var(--aivs-blue);
@@ -101,8 +104,6 @@ select:focus, select:hover {
   padding:16px;
   margin-top:10px;
 }
-.actor{padding:10px;border-bottom:1px solid #ddd;}
-.actor span{color:var(--aivs-blue);font-weight:bold;}
 
 #aivs-footer{
   margin-top:30px;
@@ -148,48 +149,46 @@ select:focus, select:hover {
   <div class="dz-message">📄 Drop or click to upload invoice</div>
 </form>
 
-<!-- ===== EMAIL INPUTS (outside Dropzone) ===== -->
-<div id="emailSection" style="margin-top:25px;">
-  <label for="userEmail"
-    style="display:block;margin-bottom:8px;font-weight:600;color:var(--aivs-blue);">
-    Email addresses (for report copies):
-  </label>
+<!-- ===== SESSION FILE LIST ===== -->
+<div id="sessionFileList"
+  style="
+    margin-top:20px;
+    border:1px solid #e7ebf3;
+    padding:10px 14px;
+    background:#fff;
+    font-size:13px;
+    color:#333;
+    max-width:320px;
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    box-shadow:0 2px 4px rgba(0,0,0,0.05);
+  ">
+  <h4 style="
+      color:#4e65ac;
+      margin:0 0 8px 0;
+      font-size:15px;
+      font-weight:700;">
+    Files uploaded this session
+  </h4>
 
-  <input type="email" id="userEmail" name="userEmail" placeholder="Primary email"
-    style="width:400px;padding:8px 10px;border:1.5px solid var(--aivs-blue);
-    border-radius:0;background:#fff;color:#222;font-size:14px;font-weight:500;
-    box-sizing:border-box;margin-bottom:10px;display:block;
-    box-shadow:0 0 0 1px rgba(78,101,172,0.1);">
+  <ul id="sessionFileItems" style="padding-left:18px;margin:0;">
+    <li style="color:#777;">No files uploaded yet.</li>
+  </ul>
 
-  <input type="email" id="emailCopy1" name="emailCopy1" placeholder="Copy to (optional)"
-    style="width:400px;padding:8px 10px;border:1.5px solid var(--aivs-blue);
-    border-radius:0;background:#fff;color:#222;font-size:14px;font-weight:500;
-    box-sizing:border-box;margin-bottom:10px;display:block;
-    box-shadow:0 0 0 1px rgba(78,101,172,0.1);">
-
-  <input type="email" id="emailCopy2" name="emailCopy2" placeholder="Copy to (optional)"
-    style="width:400px;padding:8px 10px;border:1.5px solid var(--aivs-blue);
-    border-radius:0;background:#fff;color:#222;font-size:14px;font-weight:500;
-    box-sizing:border-box;display:block;
-    box-shadow:0 0 0 1px rgba(78,101,172,0.1);">
+  <button id="refreshPageBtn"
+    style="
+      margin-top:10px;
+      background:#4e65ac;
+      color:#fff;
+      border:none;
+      padding:6px 14px;
+      font-size:13px;
+      cursor:pointer;
+      border-radius:0;
+      font-weight:600;
+    ">
+    🔄 Refresh Page
+  </button>
 </div>
-
-<!-- ===== ACTION BUTTONS ===== -->
-<button id="clearResultsBtn"
-  style="display:none;background:var(--aivs-blue);color:#fff;border:none;
-  border-radius:0;padding:10px 26px;font-size:15px;font-weight:600;
-  margin-top:16px;cursor:pointer;">
-  ✖ Clear Results
-</button>
-
-<!--
-<button id="sendEmailBtn"
-  style="background:var(--aivs-blue);color:#fff;border:none;border-radius:0;
-  padding:10px 26px;font-size:15px;font-weight:600;margin-top:12px;cursor:pointer;">
-  📧 Send to these emails
-</button>
--->
-
 
 <!-- ===== OUTPUT ===== -->
 <div id="actors"></div>
@@ -204,5 +203,12 @@ select:focus, select:hover {
 
 <script src="https://unpkg.com/dropzone@5/dist/min/dropzone.min.js"></script>
 <script src="invoice_check.js"></script>
+
+<script>
+  // ✅ Refresh Page button functionality
+  document.getElementById("refreshPageBtn").addEventListener("click", () => {
+    window.location.reload();
+  });
+</script>
 </body>
 </html>
