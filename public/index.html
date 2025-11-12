@@ -45,22 +45,31 @@ label{
 select,input{
   font-family:inherit;
 }
-select{
+select {
   width:260px;
   padding:8px 10px;
-  border:1px solid var(--aivs-blue);
-  border-radius:0;
+  border:1.5px solid var(--aivs-blue);
+  border-radius:0;              /* ← keeps square corners */
   background:#fff;
   color:var(--aivs-blue);
   font-weight:600;
   font-size:14px;
+  font-family:inherit;
+  appearance:none;              /* ← removes native rounded dropdown styling */
+  -webkit-appearance:none;      /* ← Safari fix */
+  -moz-appearance:none;         /* ← Firefox fix */
+  background-image:url("data:image/svg+xml;charset=US-ASCII,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath fill='%234e65ac' d='M0 0l4 5 4-5z'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;
+  background-position:right 10px center; /* adds subtle dropdown arrow */
+  background-size:8px 5px;
 }
-select:focus,select:hover{
+
+select:focus, select:hover {
   border-color:var(--aivs-blue);
   box-shadow:0 0 0 1px var(--aivs-blue) inset;
   outline:none;
 }
-
+/* --- Dropzone styling ------------------------------------------------ */
 .dropzone{
   border:3px solid var(--aivs-blue);
   border-radius:0;
