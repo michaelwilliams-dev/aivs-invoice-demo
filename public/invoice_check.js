@@ -19,7 +19,7 @@ const dz = new Dropzone("#invoiceDrop", {
   acceptedFiles: ".pdf,.jpg,.png,.json",
   autoProcessQueue: true,
   addRemoveLinks: false,
-  dictDefaultMessage: "📄 Drop file here to upload invoice - accepted files: pdf jpg png json",
+  dictDefaultMessage: "📄 Drop file here to upload invoice - accepted files: pdfs",
 
   init: function () {
     const dzInstance = this;
@@ -58,7 +58,7 @@ const dz = new Dropzone("#invoiceDrop", {
       z-index:10;
       transition:opacity 0.3s ease;
     `;
-    overlay.textContent = "📄 Drop file here to upload invoice - accepted files: pdf jpg png json";
+    overlay.textContent = "📄 Drop file here to upload invoice - accepted files: pdfs";
     dzElement.appendChild(overlay);
 
     // ---- sending --------------------------------------------------------
