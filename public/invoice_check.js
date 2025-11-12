@@ -1,13 +1,13 @@
 /**
 * AIVS Invoice Compliance Checker · Frontend Logic
- * ISO Timestamp: 2025-11-11T20:15:00Z
  * ISO Timestamp: 2025-11-12T08:00:00Z
+ * ISO Timestamp: 2025-11-12T09:45:00Z
 * Author: AIVS Software Limited
 * Brand Colour: #4e65ac
 * Description:
- * Compact 80 px upload box showing its own live messages,
- * then replacing them with Uploader / Parser info once done.
  * Adds upload lock — user must press Clear before next upload.
+ * Adds upload lock — user must press Clear before next upload,
+ * hides uploader when report arrives, shows framed summary box.
 */
 
 Dropzone.autoDiscover = false;
@@ -25,12 +25,27 @@ dictDefaultMessage: "📄 Drop or click to upload invoice",
 
 init: function () {
 const dzInstance = this;
-    const dzElement  = document.getElementById("invoiceDrop");
-    const actorsDiv  = document.getElementById("actors");
-    const clearBtn   = document.getElementById("clearResultsBtn");
-    const dzElement = document.getElementById("invoiceDrop");
-    const actorsDiv = document.getElementById("actors");
-    const clearBtn = document.getElementById("clearResultsBtn");
+const dzElement = document.getElementById("invoiceDrop");
+const actorsDiv = document.getElementById("actors");
+const clearBtn = document.getElementById("clearResultsBtn");
+
+    // ✅ create framed status box for uploader/parser
+    const statusBox = document.createElement("div");
+    statusBox.id = "uploadStatusBox";
+    statusBox.style.cssText = `
+      display:none;
+      border:2px solid #4e65ac;
+      background:#fff;
+      color:#222;
+      padding:12px 16px;
+      margin-top:16px;
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+      font-size:14px;
+      font-weight:500;
+      box-shadow:0 2px 4px rgba(0,0,0,0.08);
+      line-height:1.4;
+    `;
+    dzElement.parentNode.insertBefore(statusBox, actorsDiv);
 
 // hide Clear button at page load
 clearBtn.style.display = "none";
@@ -42,7 +57,9 @@ dzInstance.removeAllFiles(true);        // Remove uploaded file
 const overlay = document.getElementById("uploadOverlay");
 if (overlay) overlay.innerHTML = "📄 Drop or click to upload invoice";
 clearBtn.style.display = "none";        // Hide button again
-      uploadAllowed = true;                   // ✅ re-enable upload
+uploadAllowed = true;                   // ✅ re-enable upload
+      dzElement.style.display = "block";      // ✅ bring uploader back
+      statusBox.style.display = "none";       // ✅ hide summary frame
 });
 
 // compact fixed height
@@ -72,37 +89,37 @@ overlay.style.cssText = `
 overlay.textContent = "📄 Drop or click to upload invoice";
 dzElement.appendChild(overlay);
 
-    // ✅ Small transient warning message element
-    const warn = document.createElement("div");
-    warn.id = "uploadWarning";
-    warn.style.cssText = `
-      position:absolute;
-      bottom:4px;
-      width:100%;
-      text-align:center;
-      color:#c0392b;
-      font-size:13px;
-      font-weight:600;
-      opacity:0;
-      transition:opacity 0.4s ease;
-      pointer-events:none;
-    `;
-    dzElement.appendChild(warn);
+// ✅ Small transient warning message element
+const warn = document.createElement("div");
+warn.id = "uploadWarning";
+warn.style.cssText = `
+     position:absolute;
+     bottom:4px;
+     width:100%;
+     text-align:center;
+     color:#c0392b;
+     font-size:13px;
+     font-weight:600;
+     opacity:0;
+     transition:opacity 0.4s ease;
+     pointer-events:none;
+   `;
+dzElement.appendChild(warn);
 
-    function showWarning(msg) {
-      warn.textContent = msg;
-      warn.style.opacity = "1";
-      setTimeout(() => (warn.style.opacity = "0"), 2500);
-    }
+function showWarning(msg) {
+warn.textContent = msg;
+warn.style.opacity = "1";
+setTimeout(() => (warn.style.opacity = "0"), 2500);
+}
 
-    // ✅ Upload lock — block new uploads until Clear is pressed
-    dzInstance.on("addedfile", function (file) {
-      if (!uploadAllowed) {
-        dzInstance.removeFile(file);
-        showWarning("Please clear results before uploading a new invoice.");
-        return false;
-      }
-    });
+// ✅ Upload lock — block new uploads until Clear is pressed
+dzInstance.on("addedfile", function (file) {
+if (!uploadAllowed) {
+dzInstance.removeFile(file);
+showWarning("Please clear results before uploading a new invoice.");
+return false;
+}
+});
 
 // ---- sending (start upload) ----------------------------------------
 dzInstance.on("sending", (file, xhr, formData) => {
@@ -118,12 +135,18 @@ formData.append("emailCopy2", document.getElementById("emailCopy2").value);
 
 // ---- success --------------------------------------------------------
 dzInstance.on("success", (file, response) => {
-overlay.innerHTML = `
-       <div><strong style="color:#4e65ac;">Uploader:</strong> ${file.name}</div>
-       <div><strong style="color:#4e65ac;">Parser:</strong> ${
+      overlay.innerHTML = `
+        <div><strong style="color:#4e65ac;">Uploader:</strong> ${file.name}</div>
+        <div><strong style="color:#4e65ac;">Parser:</strong> ${
+      // ✅ show framed summary instead of keeping overlay
+      statusBox.innerHTML = `
+        <div><strong style="color:#4e65ac;">UPLOADER:</strong> ${file.name}</div>
+        <div><strong style="color:#4e65ac;">PARSER:</strong> ${
          response.parserNote || "Invoice parsed successfully."
        }</div>
      `;
+      statusBox.style.display = "block";  // show summary frame
+      dzElement.style.display = "none";   // hide Dropzone
 
 let formattedAI = "";
 const r = response.aiReply || response;
@@ -174,10 +197,9 @@ actorsDiv.innerHTML = `
          ${response.timestamp || "—"}
        </div>`;
 
-      // Show Clear button when report is ready
-      clearBtn.style.display = "inline-block";
-      clearBtn.style.display = "inline-block"; // ✅ show Clear
+clearBtn.style.display = "inline-block"; // ✅ show Clear
       uploadAllowed = false; // ✅ lock until cleared
+      uploadAllowed = false;                   // ✅ lock until cleared
 });
 
 dzInstance.on("error", (file, err) => {
@@ -190,31 +212,6 @@ if (dzInstance.files.length > 1) dzInstance.removeFile(dzInstance.files[0]);
 },
 });
 
-// ✅ NEW: Manual email send button logic
-document.getElementById("sendEmailBtn").addEventListener("click", async () => {
-  const payload = {
-    userEmail: document.getElementById("userEmail").value,
-    emailCopy1: document.getElementById("emailCopy1").value,
-    emailCopy2: document.getElementById("emailCopy2").value
-  };
-
-  try {
-    const res = await fetch("/send_email", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
-
-    const data = await res.json();
-    if (data.status === "email_sent") {
-      alert("✅ Emails sent successfully!");
-    } else {
-      alert("⚠️ Email not sent: " + (data.error || "Unknown error"));
-    }
-  } catch (err) {
-    alert("❌ Error sending emails: " + err.message);
-  }
-});
 // (Optional) Disable manual email button entirely if it's still in HTML
 // const sendEmailBtn = document.getElementById("sendEmailBtn");
 // if (sendEmailBtn) sendEmailBtn.style.display = "none";
