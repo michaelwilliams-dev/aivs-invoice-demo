@@ -1,6 +1,6 @@
 /**
  * AIVS Invoice Compliance Checker · Frontend Logic
- * ISO Timestamp: 2025-11-12T10:55:00Z
+ * ISO Timestamp: 2025-11-12T11:10:00Z
  * Author: AIVS Software Limited
  * Brand Colour: #4e65ac
  * Description:
@@ -26,6 +26,10 @@ const dz = new Dropzone("#invoiceDrop", {
     const dzElement = document.getElementById("invoiceDrop");
     const actorsDiv = document.getElementById("actors");
     const clearBtn = document.getElementById("clearResultsBtn");
+
+    // ✅ make sure Dropzone stays above surrounding panels for drag events
+    dzElement.style.position = "relative";
+    dzElement.style.zIndex = "50";
 
     // ✅ create framed status box for uploader/parser
     const statusBox = document.createElement("div");
@@ -63,7 +67,6 @@ const dz = new Dropzone("#invoiceDrop", {
     // compact fixed height
     dzElement.style.height = "80px";
     dzElement.style.minHeight = "80px";
-    dzElement.style.position = "relative";
     dzElement.style.overflow = "hidden";
 
     // create inner message layer
