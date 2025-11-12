@@ -58,7 +58,7 @@ const dz = new Dropzone("#invoiceDrop", {
       z-index:10;
       transition:opacity 0.3s ease;
     `;
-    overlay.textContent = "📄 Drop or click to upload invoice";
+    overlay.textContent = "📄 Drop file here to upload invoice - accepted files: pdf jpg png json";
     dzElement.appendChild(overlay);
 
     // ---- sending --------------------------------------------------------
