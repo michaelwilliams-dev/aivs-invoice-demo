@@ -11,13 +11,6 @@ import path from "path";
 import { fileURLToPath } from "url";
 import checkInvoiceRoute from "./backoffice/routes/check_invoice.js";
 import sendEmailRoute from "./backoffice/routes/send_email.js";
-import { testFaissLoading } from "./backoffice/faiss_loader.js";
-
-// ------------------------------------------------------
-// 🔍 ADDED FOR JOB 2 — semantic search setup
-// ------------------------------------------------------
-import { loadFaissSearch, semanticSearch } from "./backoffice/faiss_search.js";
-// ------------------------------------------------------
 
 console.log("🔧 Booting AIVS Invoice Checker server …");
 
@@ -42,30 +35,6 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, "public")));
 app.use("/", checkInvoiceRoute);
 app.use("/", sendEmailRoute);
-
-// ------------------------------------------------------
-// 🔍 ADDED: FAISS test route (Job 1)
-// ------------------------------------------------------
-app.get("/faiss-test", (req, res) => {
-  const result = testFaissLoading();
-  res.json(result);
-});
-
-// ------------------------------------------------------
-// 🔍 ADDED: FAISS semantic search route (Job 2)
-// ------------------------------------------------------
-loadFaissSearch();   // load FAISS index + metadata on startup
-
-app.get("/faiss-search", async (req, res) => {
-  try {
-    const q = req.query.q || "CIS labour";
-    const results = await semanticSearch(q, 6);
-    res.json(results);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-// ------------------------------------------------------
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
@@ -123,6 +92,7 @@ export async function saveReportFiles(aiReply) {
 
           ...(aiReply.corrected_invoice
             ? [
+                // ✅ Invoice note instead of formatted invoice section
                 new Paragraph({
                   children: [
                     new TextRun({
@@ -144,6 +114,7 @@ export async function saveReportFiles(aiReply) {
               ]
             : []),
 
+          // ✅ Added proper AIVS saving clause
           new Paragraph({
             children: [
               new TextRun({
