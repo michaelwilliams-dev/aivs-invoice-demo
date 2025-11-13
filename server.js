@@ -11,6 +11,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import checkInvoiceRoute from "./backoffice/routes/check_invoice.js";
 import sendEmailRoute from "./backoffice/routes/send_email.js";
+import { testFaissLoading } from "./backoffice/faiss_loader.js";
 
 console.log("🔧 Booting AIVS Invoice Checker server …");
 
@@ -35,6 +36,15 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, "public")));
 app.use("/", checkInvoiceRoute);
 app.use("/", sendEmailRoute);
+
+// ------------------------------------------------------
+// 🔍 ADDED: FAISS test route (Step 1 only)
+// ------------------------------------------------------
+app.get("/faiss-test", (req, res) => {        // ← ADDED
+  const result = testFaissLoading();          // ← ADDED
+  res.json(result);                           // ← ADDED
+});                                           // ← ADDED
+// ------------------------------------------------------
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
@@ -92,7 +102,6 @@ export async function saveReportFiles(aiReply) {
 
           ...(aiReply.corrected_invoice
             ? [
-                // ✅ Invoice note instead of formatted invoice section
                 new Paragraph({
                   children: [
                     new TextRun({
@@ -114,7 +123,6 @@ export async function saveReportFiles(aiReply) {
               ]
             : []),
 
-          // ✅ Added proper AIVS saving clause
           new Paragraph({
             children: [
               new TextRun({
