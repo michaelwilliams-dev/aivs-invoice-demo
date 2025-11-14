@@ -1,0 +1,93 @@
+/**
+ * cis_rules.js
+ * ISO Timestamp: 2025-11-14T15:30:00Z
+ * AIVS Software Limited
+ *
+ * Deterministic CIS engine (no LLM, no FAISS dependency).
+ * HMRC-compliant. Used in Accounting Pro and Invoice Checker.
+ */
+
+export function computeCIS(fields) {
+  const {
+    labourAmount = 0,
+    materialsAmount = 0,
+    cisRate = 20,
+    vatCategory = "standard-20",
+    endUserConfirmed = false,
+    isConstruction = true,
+  } = fields;
+
+  const output = {
+    cisApplicable: false,
+    reason: "",
+    cisRateUsed: cisRate,
+    labourAmount,
+    materialsAmount,
+    cisDeduction: 0,
+    domesticReverseCharge: false,
+    drcReason: "",
+    vatCategoryUsed: vatCategory,
+    checks: []
+  };
+
+  // ------------------------------------------------------
+  // 1. CIS applies ONLY to construction operations
+  // ------------------------------------------------------
+  if (!isConstruction) {
+    output.reason = "Work is not within CIS (non-construction activity).";
+    output.checks.push("CIS removed: not a construction activity.");
+    return output;
+  }
+
+  // ------------------------------------------------------
+  // 2. End-user check (removes DRC)
+  // ------------------------------------------------------
+  if (endUserConfirmed === true) {
+    output.domesticReverseCharge = false;
+    output.drcReason = "Customer is an end-user — DRC does not apply.";
+  } else {
+    // Standard-rated supply + construction → DRC applies
+    if (vatCategory === "standard-20") {
+      output.domesticReverseCharge = true;
+      output.drcReason = "Standard-rated construction supply — DRC applies.";
+    }
+  }
+
+  // ------------------------------------------------------
+  // 3. CIS requires labour amount > 0
+  // ------------------------------------------------------
+  if (labourAmount <= 0) {
+    output.reason = "Invoice contains no labour — CIS does not apply.";
+    output.checks.push("CIS removed: labour amount is zero.");
+    return output;
+  }
+
+  output.cisApplicable = true;
+  output.reason = "CIS applies to the labour element only.";
+  output.checks.push("CIS confirmed: labour detected.");
+
+  // ------------------------------------------------------
+  // 4. Calculate CIS deduction (20% or 30%)
+  // ------------------------------------------------------
+  const cisValue = (labourAmount * cisRate) / 100;
+  output.cisDeduction = Number(cisValue.toFixed(2));
+  output.checks.push(`CIS deduction calculated at ${cisRate}%.`);
+
+  // ------------------------------------------------------
+  // 5. Materials are EXCLUDED from CIS
+  // ------------------------------------------------------
+  output.checks.push("Materials excluded from CIS deduction.");
+
+  // ------------------------------------------------------
+  // 6. VAT / DRC logic
+  // ------------------------------------------------------
+  if (output.domesticReverseCharge) {
+    output.vatCategoryUsed =
+      "Domestic Reverse Charge — customer must account for VAT.";
+    output.checks.push("DRC applied: customer to account for VAT.");
+  } else {
+    output.checks.push("Standard VAT rules apply.");
+  }
+
+  return output;
+}
