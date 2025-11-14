@@ -24,9 +24,7 @@ import { saveReportFiles, sendReportEmail } from "../../server.js";
 import fs from "fs";
 import OpenAI from "openai";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const openai = new OpenAI(process.env.OPENAI_API_KEY);
 
 // Hard paths to your duplicated FAISS index on Invoice Checker Render disk
 const INDEX_PATH = "/mnt/data/vector.index";
@@ -65,7 +63,7 @@ function cosine(a, b) {
 
 /* --- FAISS Search Wrapper (OLD SDK COMPATIBLE) --- */
 async function searchFaiss(queryText, topK = 6) {
-  const emb = await openai.createEmbedding({
+  const emb = await openai.Embeddings.create({
     model: "text-embedding-ada-002",
     input: queryText,
   });
