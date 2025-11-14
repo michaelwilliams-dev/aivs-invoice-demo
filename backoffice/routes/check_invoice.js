@@ -1,6 +1,6 @@
 /**
  * AIVS Invoice Compliance Checker · Express Route
- * ISO Timestamp: 2025-11-14T14:30:00Z
+ * ISO Timestamp: 2025-11-14T14:45:00Z
  * Author: AIVS Software Limited
  */
 
@@ -18,18 +18,19 @@ const openai = new OpenAI({
 });
 
 /* -------------------------------------------------------------
-   INLINE FAISS ENGINE — LIMIT = 10,000 VECTORS ONLY
+   INLINE FAISS ENGINE — SAME AS ACCOUNTING PRO
+   WITH TEXT MERGE + 10,000 LIMIT
 ------------------------------------------------------------- */
 
 const INDEX_PATH = "/mnt/data/vector.index";
 const META_PATH  = "/mnt/data/chunks_metadata.final.jsonl";
-const CHUNK_LIMIT = 10000;   // 🔥 SINGLE CHANGE
+const LIMIT      = 10000; // << REQUIRED FIX
 
-let faissIndex = [];
 let metadata = [];
+let faissIndex = [];
 
 /* -------------------------------------------------------------
-   LOAD METADATA
+   LOAD METADATA (text only)
 ------------------------------------------------------------- */
 try {
   console.log("🔍 Loading FAISS metadata...");
@@ -37,18 +38,20 @@ try {
     .readFileSync(META_PATH, "utf8")
     .trim()
     .split("\n")
+    .slice(0, LIMIT)                      // MATCH EXACT VECTOR COUNT
     .map((l) => JSON.parse(l));
 
-  console.log("✅ Loaded FAISS chunks:", metadata.length);
+  console.log("✅ Loaded metadata lines:", metadata.length);
 } catch (err) {
   console.error("❌ Metadata load error:", err.message);
+  metadata = [];
 }
 
 /* -------------------------------------------------------------
-   CHUNK-SAFE VECTOR LOADER — LIMITED TO 10K
+   CHUNK-SAFE VECTOR INDEX LOADER (LIMIT = 10k)
 ------------------------------------------------------------- */
-async function loadIndex(limit = CHUNK_LIMIT) {
-  console.log(`📦 Loading vector.index in chunks (limit ${limit})`);
+async function loadIndex(limit = LIMIT) {
+  console.log(`📦 Loading vector.index in chunks (limit ${limit})...`);
 
   const fd = await fs.promises.open(INDEX_PATH, "r");
   const stream = fd.createReadStream({ encoding: "utf8" });
@@ -64,16 +67,24 @@ async function loadIndex(limit = CHUNK_LIMIT) {
 
     for (const p of parts) {
       if (!p.includes('"embedding"')) continue;
+
       try {
         const obj = JSON.parse(p.endsWith("}") ? p : p + "}");
-        vectors.push(obj);
-        processed++;
 
-        if (processed % 2000 === 0)
+        // 🔥 FIX: MERGE TEXT FROM METADATA
+        const meta = metadata[processed] || {};
+        vectors.push({
+          ...obj,
+          text: meta.text || ""
+        });
+
+        processed++;
+        if (processed % 2000 === 0) {
           console.log(`  → Loaded ${processed} vectors`);
+        }
 
         if (vectors.length >= limit) {
-          console.log("🛑 Limit reached:", limit);
+          console.log("🛑 Vector limit hit:", limit);
           await fd.close();
           return vectors;
         }
@@ -82,24 +93,24 @@ async function loadIndex(limit = CHUNK_LIMIT) {
   }
 
   await fd.close();
-  console.log(`✅ Fully loaded ${vectors.length} vectors`);
+  console.log(`✅ Loaded ${vectors.length} vectors`);
   return vectors;
 }
 
 /* -------------------------------------------------------------
-   PRELOAD (picks up exactly 10,000)
+   PRELOAD VECTORS ON STARTUP
 ------------------------------------------------------------- */
 (async () => {
   try {
-    faissIndex = await loadIndex(10000);   // 🔥 SINGLE CHANGE
+    faissIndex = await loadIndex(LIMIT);
     console.log(`🟢 FAISS READY: ${faissIndex.length} vectors`);
-  } catch (e) {
-    console.error("❌ Preload FAISS failed:", e.message);
+  } catch (err) {
+    console.error("❌ FAISS preload failed:", err.message);
   }
 })();
 
 /* -------------------------------------------------------------
-   DOT PRODUCT
+   DOT PRODUCT (Accounting Pro uses this)
 ------------------------------------------------------------- */
 function dotProduct(a, b) {
   if (!a || !b || a.length !== b.length) return 0;
@@ -107,12 +118,10 @@ function dotProduct(a, b) {
 }
 
 /* -------------------------------------------------------------
-   SEARCH INDEX (ACCOUNTING-PRO METHOD)
+   FAISS SEARCH (Accounting Pro’s method)
 ------------------------------------------------------------- */
 async function searchIndex(query, index) {
   if (!query || query.length < 3) return [];
-
-  console.log("🔍 FAISS Query:", query);
 
   const resp = await openai.embeddings.create({
     model: "text-embedding-3-small",
@@ -140,7 +149,7 @@ router.use(
 );
 
 /* -------------------------------------------------------------
-   MAIN ROUTE — FAISS + ANALYSIS
+   MAIN ROUTE — FULL FAISS + CONTEXT
 ------------------------------------------------------------- */
 
 router.post("/check_invoice", async (req, res) => {
@@ -159,18 +168,19 @@ router.post("/check_invoice", async (req, res) => {
 
     const parsed = await parseInvoice(file.data);
 
-    /* ----- FAISS SEARCH ----- */
+    /* ---------- FAISS SEARCH ---------- */
     let faissContext = "";
     let matches = [];
 
     try {
       console.log("🔎 Running FAISS search…");
+
       matches = await searchIndex(parsed.text, faissIndex);
 
       console.log("📌 Raw FAISS matches:", matches.length);
       console.log(
         "📌 First preview:",
-        matches[0]?.text?.slice(0, 150) || "NONE"
+        matches[0]?.text?.slice(0, 200) || "NONE"
       );
 
       const filtered = matches.filter((m) => m.score >= 0.03);
@@ -178,23 +188,27 @@ router.post("/check_invoice", async (req, res) => {
       console.log("📦 Relevant chunks:", filtered.length);
 
       faissContext = filtered.map((m) => m.text).join("\n\n");
+
     } catch (err) {
       console.log("⚠️ FAISS error:", err.message);
     }
 
-    /* ----- AI ----- */
+    /* ---------- AI ANALYSIS ---------- */
     const aiReply = await analyseInvoice(parsed.text, flags, faissContext);
 
-    /* ----- REPORT ----- */
+    /* ---------- REPORT GENERATION ---------- */
     const { docPath, pdfPath, timestamp } = await saveReportFiles(aiReply);
 
-    /* ----- EMAIL ----- */
-    const to = req.body.userEmail;
-    const ccList = [req.body.emailCopy1, req.body.emailCopy2].filter(Boolean);
+    /* ---------- EMAIL ---------- */
+    await sendReportEmail(
+      req.body.userEmail,
+      [req.body.emailCopy1, req.body.emailCopy2].filter(Boolean),
+      docPath,
+      pdfPath,
+      timestamp
+    );
 
-    await sendReportEmail(to, ccList, docPath, pdfPath, timestamp);
-
-    /* ----- RESPONSE ----- */
+    /* ---------- RESPONSE ---------- */
     res.json({
       parserNote: parsed.parserNote,
       aiReply,
