@@ -12,15 +12,15 @@ import { parseInvoice, analyseInvoice } from "../invoice_tools.js";
 import { saveReportFiles, sendReportEmail } from "../../server.js";
 
 /* -------------------------------------------------------------
-   IMPORT FAISS (CORRECTED PATH)
+   CORRECT FAISS IMPORT (ROOT FOLDER)
 ------------------------------------------------------------- */
-import { loadIndex, searchIndex } from "../vector_store.js";
+import { loadIndex, searchIndex } from "../../vector_store.js";
 
 let faissIndex = null;
 
 (async () => {
   try {
-    console.log("📦 Preloading FAISS index (Accounting Pro method)...");
+    console.log("📦 Preloading FAISS index (same logic as Accounting Pro)...");
     faissIndex = await loadIndex(10000);
     console.log(`✅ Loaded ${faissIndex.length} FAISS vectors.`);
   } catch (err) {
@@ -56,12 +56,17 @@ router.post("/check_invoice", async (req, res) => {
 
     const parsed = await parseInvoice(file.data);
 
+    /* FAISS SEARCH — Accounting Pro method */
     let faissContext = "";
+
     try {
-      console.log("🔎 Running FAISS search...");
+      console.log("🔎 Running FAISS search…");
+
       const matches = await searchIndex(parsed.text, faissIndex);
       const filtered = matches.filter((m) => m.score >= 0.03);
+
       console.log("📌 FAISS chunks returned:", filtered.length);
+
       faissContext = filtered.map((m) => m.text).join("\n\n");
     } catch (err) {
       console.log("⚠️ FAISS search error:", err.message);
@@ -84,9 +89,10 @@ router.post("/check_invoice", async (req, res) => {
     });
   } catch (err) {
     console.error("❌ /check_invoice error:", err.message);
-    res
-      .status(500)
-      .json({ error: err.message, timestamp: new Date().toISOString() });
+    res.status(500).json({
+      error: err.message,
+      timestamp: new Date().toISOString(),
+    });
   }
 });
 
