@@ -183,10 +183,12 @@ router.post("/check_invoice", async (req, res) => {
     const file = req.files.file;
 
     const flags = {
-      vatCategory: req.body.vatCategory,
-      endUserConfirmed: req.body.endUserConfirmed,
-      cisRate: req.body.cisRate,
-    };
+    vatCategory: req.body.vatCategory,
+    endUserConfirmed: req.body.endUserConfirmed,
+    cisRate: req.body.cisRate,
+    labour: req.body.labour,
+    materials: req.body.materials,
+  };
 
     const parsed = await parseInvoice(file.data);
 
