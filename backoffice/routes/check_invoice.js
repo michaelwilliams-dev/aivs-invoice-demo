@@ -1,6 +1,6 @@
 /**
  * AIVS Invoice Compliance Checker · Express Route
- * ISO Timestamp: 2025-11-14T14:15:00Z
+ * ISO Timestamp: 2025-11-14T14:30:00Z
  * Author: AIVS Software Limited
  */
 
@@ -18,12 +18,12 @@ const openai = new OpenAI({
 });
 
 /* -------------------------------------------------------------
-   INLINE FAISS ENGINE — NO IMPORTS — SELF-CONTAINED
+   INLINE FAISS ENGINE — LIMIT = 10,000 VECTORS ONLY
 ------------------------------------------------------------- */
 
 const INDEX_PATH = "/mnt/data/vector.index";
 const META_PATH  = "/mnt/data/chunks_metadata.final.jsonl";
-const CHUNK_LIMIT = 50000;
+const CHUNK_LIMIT = 10000;   // 🔥 SINGLE CHANGE
 
 let faissIndex = [];
 let metadata = [];
@@ -38,13 +38,14 @@ try {
     .trim()
     .split("\n")
     .map((l) => JSON.parse(l));
-  console.log("✅ Loaded metadata lines:", metadata.length);
+
+  console.log("✅ Loaded FAISS chunks:", metadata.length);
 } catch (err) {
   console.error("❌ Metadata load error:", err.message);
 }
 
 /* -------------------------------------------------------------
-   CHUNK-SAFE VECTOR INDEX LOADER  (MATCHES ACCOUNTING PRO)
+   CHUNK-SAFE VECTOR LOADER — LIMITED TO 10K
 ------------------------------------------------------------- */
 async function loadIndex(limit = CHUNK_LIMIT) {
   console.log(`📦 Loading vector.index in chunks (limit ${limit})`);
@@ -67,11 +68,12 @@ async function loadIndex(limit = CHUNK_LIMIT) {
         const obj = JSON.parse(p.endsWith("}") ? p : p + "}");
         vectors.push(obj);
         processed++;
-        if (processed % 2000 === 0) {
+
+        if (processed % 2000 === 0)
           console.log(`  → Loaded ${processed} vectors`);
-        }
+
         if (vectors.length >= limit) {
-          console.log("🛑 Vector limit reached");
+          console.log("🛑 Limit reached:", limit);
           await fd.close();
           return vectors;
         }
@@ -80,19 +82,19 @@ async function loadIndex(limit = CHUNK_LIMIT) {
   }
 
   await fd.close();
-  console.log(`✅ Loaded ${vectors.length} vectors`);
+  console.log(`✅ Fully loaded ${vectors.length} vectors`);
   return vectors;
 }
 
 /* -------------------------------------------------------------
-   PRELOAD INDEX AT SERVER START
+   PRELOAD (picks up exactly 10,000)
 ------------------------------------------------------------- */
 (async () => {
   try {
-    faissIndex = await loadIndex(50000);
+    faissIndex = await loadIndex(10000);   // 🔥 SINGLE CHANGE
     console.log(`🟢 FAISS READY: ${faissIndex.length} vectors`);
   } catch (e) {
-    console.error("❌ Could not preload FAISS:", e.message);
+    console.error("❌ Preload FAISS failed:", e.message);
   }
 })();
 
@@ -105,12 +107,12 @@ function dotProduct(a, b) {
 }
 
 /* -------------------------------------------------------------
-   SEARCH INDEX — EXACT ACCOUNTING PRO IMPLEMENTATION
+   SEARCH INDEX (ACCOUNTING-PRO METHOD)
 ------------------------------------------------------------- */
 async function searchIndex(query, index) {
   if (!query || query.length < 3) return [];
 
-  console.log("🔍 [AIVS Search] Query:", query);
+  console.log("🔍 FAISS Query:", query);
 
   const resp = await openai.embeddings.create({
     model: "text-embedding-3-small",
@@ -128,6 +130,7 @@ async function searchIndex(query, index) {
 }
 
 /* ------------------------------------------------------------- */
+
 router.use(
   fileUpload({
     parseNested: true,
@@ -137,7 +140,7 @@ router.use(
 );
 
 /* -------------------------------------------------------------
-   MAIN ROUTE — FULL FAISS + ANALYSIS (ACCOUNTING-PRO IDENTICAL)
+   MAIN ROUTE — FAISS + ANALYSIS
 ------------------------------------------------------------- */
 
 router.post("/check_invoice", async (req, res) => {
@@ -156,19 +159,18 @@ router.post("/check_invoice", async (req, res) => {
 
     const parsed = await parseInvoice(file.data);
 
-    /* --- FAISS full search --- */
+    /* ----- FAISS SEARCH ----- */
     let faissContext = "";
     let matches = [];
 
     try {
       console.log("🔎 Running FAISS search…");
-
       matches = await searchIndex(parsed.text, faissIndex);
 
-      console.log("📌 Matches:", matches.length);
+      console.log("📌 Raw FAISS matches:", matches.length);
       console.log(
-        "📌 Preview:",
-        matches[0]?.text?.slice(0, 200) || "NO MATCH"
+        "📌 First preview:",
+        matches[0]?.text?.slice(0, 150) || "NONE"
       );
 
       const filtered = matches.filter((m) => m.score >= 0.03);
@@ -180,22 +182,22 @@ router.post("/check_invoice", async (req, res) => {
       console.log("⚠️ FAISS error:", err.message);
     }
 
-    /* --- AI Analysis --- */
+    /* ----- AI ----- */
     const aiReply = await analyseInvoice(parsed.text, flags, faissContext);
 
-    /* --- Generate Files --- */
+    /* ----- REPORT ----- */
     const { docPath, pdfPath, timestamp } = await saveReportFiles(aiReply);
 
-    /* --- Email --- */
+    /* ----- EMAIL ----- */
     const to = req.body.userEmail;
     const ccList = [req.body.emailCopy1, req.body.emailCopy2].filter(Boolean);
 
     await sendReportEmail(to, ccList, docPath, pdfPath, timestamp);
 
-    /* --- Return Response --- */
+    /* ----- RESPONSE ----- */
     res.json({
-      aiReply,
       parserNote: parsed.parserNote,
+      aiReply,
       faissMatches: matches.length,
       timestamp: new Date().toISOString(),
     });
