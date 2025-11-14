@@ -12,15 +12,15 @@ import { parseInvoice, analyseInvoice } from "../invoice_tools.js";
 import { saveReportFiles, sendReportEmail } from "../../server.js";
 
 /* -------------------------------------------------------------
-   IMPORT THE WORKING FAISS IMPLEMENTATION FROM ACCOUNTING PRO
+   IMPORT FAISS (CORRECTED PATH)
 ------------------------------------------------------------- */
-import { loadIndex, searchIndex } from "../../vector_store.js";
+import { loadIndex, searchIndex } from "../vector_store.js";
 
 let faissIndex = null;
 
 (async () => {
   try {
-    console.log("📦 Preloading FAISS index (same logic as Accounting Pro)...");
+    console.log("📦 Preloading FAISS index (Accounting Pro method)...");
     faissIndex = await loadIndex(10000);
     console.log(`✅ Loaded ${faissIndex.length} FAISS vectors.`);
   } catch (err) {
@@ -40,9 +40,6 @@ router.use(
   })
 );
 
-/* -------------------------------------------------------------
-   MAIN ROUTE — FAISS ENABLED (ACCOUNTING-PRO METHOD)
-------------------------------------------------------------- */
 router.post("/check_invoice", async (req, res) => {
   try {
     console.log("🟢 /check_invoice");
@@ -59,12 +56,9 @@ router.post("/check_invoice", async (req, res) => {
 
     const parsed = await parseInvoice(file.data);
 
-    /* ---------------------------------------
-       FAISS SEARCH (from Accounting Pro)
-    -----------------------------------------*/
     let faissContext = "";
     try {
-      console.log("🔎 Running FAISS search…");
+      console.log("🔎 Running FAISS search...");
       const matches = await searchIndex(parsed.text, faissIndex);
       const filtered = matches.filter((m) => m.score >= 0.03);
       console.log("📌 FAISS chunks returned:", filtered.length);
@@ -73,14 +67,8 @@ router.post("/check_invoice", async (req, res) => {
       console.log("⚠️ FAISS search error:", err.message);
     }
 
-    /* ---------------------------------------
-       ANALYSIS
-    -----------------------------------------*/
     const aiReply = await analyseInvoice(parsed.text, flags, faissContext);
 
-    /* ---------------------------------------
-       REPORT + EMAIL
-    -----------------------------------------*/
     const { docPath, pdfPath, timestamp } = await saveReportFiles(aiReply);
 
     const to = req.body.userEmail;
@@ -88,16 +76,12 @@ router.post("/check_invoice", async (req, res) => {
 
     await sendReportEmail(to, ccList, docPath, pdfPath, timestamp);
 
-    /* ---------------------------------------
-       RESPONSE
-    -----------------------------------------*/
     res.json({
       parserNote: parsed.parserNote,
       aiReply,
       faissChunks: faissContext.length,
       timestamp: new Date().toISOString(),
     });
-
   } catch (err) {
     console.error("❌ /check_invoice error:", err.message);
     res
