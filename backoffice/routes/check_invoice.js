@@ -1,6 +1,6 @@
 /**
  * AIVS Invoice Compliance Checker · Express Route
- * ISO Timestamp: 2025-11-14T14:45:00Z
+ * ISO Timestamp: 2025-11-14T15:10:00Z
  * Author: AIVS Software Limited
  */
 
@@ -13,18 +13,18 @@ import { parseInvoice, analyseInvoice } from "../invoice_tools.js";
 import { saveReportFiles, sendReportEmail } from "../../server.js";
 
 const router = express.Router();
+
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_APIKEY || process.env.OPENAI_API_KEY,
 });
 
 /* -------------------------------------------------------------
-   INLINE FAISS ENGINE — SAME AS ACCOUNTING PRO
-   WITH TEXT MERGE + 10,000 LIMIT
+   INLINE FAISS ENGINE — FULL ACCOUNTING PRO LOGIC
 ------------------------------------------------------------- */
 
 const INDEX_PATH = "/mnt/data/vector.index";
 const META_PATH  = "/mnt/data/chunks_metadata.final.jsonl";
-const LIMIT      = 10000; // << REQUIRED FIX
+const LIMIT      = 10000;
 
 let metadata = [];
 let faissIndex = [];
@@ -38,7 +38,7 @@ try {
     .readFileSync(META_PATH, "utf8")
     .trim()
     .split("\n")
-    .slice(0, LIMIT)                      // MATCH EXACT VECTOR COUNT
+    .slice(0, LIMIT)
     .map((l) => JSON.parse(l));
 
   console.log("✅ Loaded metadata lines:", metadata.length);
@@ -48,10 +48,10 @@ try {
 }
 
 /* -------------------------------------------------------------
-   CHUNK-SAFE VECTOR INDEX LOADER (LIMIT = 10k)
+   CHUNK-SAFE LOADER WITH METADATA ALIGNMENT FIX
 ------------------------------------------------------------- */
 async function loadIndex(limit = LIMIT) {
-  console.log(`📦 Loading vector.index in chunks (limit ${limit})...`);
+  console.log(`📦 Loading vector.index in chunks (limit ${limit})`);
 
   const fd = await fs.promises.open(INDEX_PATH, "r");
   const stream = fd.createReadStream({ encoding: "utf8" });
@@ -71,23 +71,35 @@ async function loadIndex(limit = LIMIT) {
       try {
         const obj = JSON.parse(p.endsWith("}") ? p : p + "}");
 
-        // 🔥 FIX: MERGE TEXT FROM METADATA
-        const meta = metadata[processed] || {};
+        /* -----------------------------------------------------
+           🔥 METADATA ALIGNMENT FIX
+           Ensure every vector gets REAL text, not blank text
+        ------------------------------------------------------*/
+        let meta = metadata[processed] || {};
+        let offset = 1;
+
+        // Skip blank metadata rows until we hit real text
+        while (
+          (!meta.text || meta.text.trim() === "") &&
+          (processed + offset) < metadata.length
+        ) {
+          meta = metadata[processed + offset];
+          offset++;
+        }
+
         vectors.push({
           ...obj,
-          text: meta.text || ""
+          text: meta.text || "[NO TEXT FOUND]"
         });
 
         processed++;
-        if (processed % 2000 === 0) {
-          console.log(`  → Loaded ${processed} vectors`);
-        }
 
         if (vectors.length >= limit) {
-          console.log("🛑 Vector limit hit:", limit);
+          console.log("🛑 Vector limit reached:", limit);
           await fd.close();
           return vectors;
         }
+
       } catch {}
     }
   }
@@ -98,7 +110,7 @@ async function loadIndex(limit = LIMIT) {
 }
 
 /* -------------------------------------------------------------
-   PRELOAD VECTORS ON STARTUP
+   PRELOAD INDEX
 ------------------------------------------------------------- */
 (async () => {
   try {
@@ -110,7 +122,7 @@ async function loadIndex(limit = LIMIT) {
 })();
 
 /* -------------------------------------------------------------
-   DOT PRODUCT (Accounting Pro uses this)
+   DOT PRODUCT (Accounting Pro)
 ------------------------------------------------------------- */
 function dotProduct(a, b) {
   if (!a || !b || a.length !== b.length) return 0;
@@ -118,7 +130,7 @@ function dotProduct(a, b) {
 }
 
 /* -------------------------------------------------------------
-   FAISS SEARCH (Accounting Pro’s method)
+   FAISS SEARCH (Accounting Pro logic)
 ------------------------------------------------------------- */
 async function searchIndex(query, index) {
   if (!query || query.length < 3) return [];
@@ -149,9 +161,8 @@ router.use(
 );
 
 /* -------------------------------------------------------------
-   MAIN ROUTE — FULL FAISS + CONTEXT
+   MAIN INVOICE CHECK ROUTE
 ------------------------------------------------------------- */
-
 router.post("/check_invoice", async (req, res) => {
   try {
     console.log("🟢 /check_invoice");
@@ -177,7 +188,7 @@ router.post("/check_invoice", async (req, res) => {
 
       matches = await searchIndex(parsed.text, faissIndex);
 
-      console.log("📌 Raw FAISS matches:", matches.length);
+      console.log("📌 Raw matches:", matches.length);
       console.log(
         "📌 First preview:",
         matches[0]?.text?.slice(0, 200) || "NONE"
@@ -185,18 +196,18 @@ router.post("/check_invoice", async (req, res) => {
 
       const filtered = matches.filter((m) => m.score >= 0.03);
 
-      console.log("📦 Relevant chunks:", filtered.length);
+      console.log("📦 Relevant chunks (>=0.03):", filtered.length);
 
       faissContext = filtered.map((m) => m.text).join("\n\n");
 
     } catch (err) {
-      console.log("⚠️ FAISS error:", err.message);
+      console.log("⚠️ FAISS search error:", err.message);
     }
 
     /* ---------- AI ANALYSIS ---------- */
     const aiReply = await analyseInvoice(parsed.text, flags, faissContext);
 
-    /* ---------- REPORT GENERATION ---------- */
+    /* ---------- REPORT OUTPUT ---------- */
     const { docPath, pdfPath, timestamp } = await saveReportFiles(aiReply);
 
     /* ---------- EMAIL ---------- */
@@ -221,5 +232,31 @@ router.post("/check_invoice", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+/* -------------------------------------------------------------
+   FAISS TEST ROUTE
+   URL: /faiss-test
+------------------------------------------------------------- */
+router.get("/faiss-test", async (req, res) => {
+  try {
+    const testQuery = "CIS 20% deduction and VAT reverse charge";
+
+    const matches = await searchIndex(testQuery, faissIndex);
+    const top = matches[0] || {};
+
+    res.json({
+      ok: true,
+      vectorsLoaded: faissIndex.length,
+      matches: matches.length,
+      topScore: top.score || 0,
+      preview: top.text ? top.text.slice(0, 250) : "NONE",
+    });
+
+  } catch (err) {
+    res.json({ ok: false, error: err.message });
+  }
+});
+
+/* ------------------------------------------------------------- */
 
 export default router;
