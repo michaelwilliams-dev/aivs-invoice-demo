@@ -19,7 +19,7 @@ import { parseInvoice, analyseInvoice } from "../invoice_tools.js";
 import { saveReportFiles, sendReportEmail } from "../../server.js";
 
 /* -------------------------------------------------------------
-   FAISS + OpenAI Embedding Loader (NO OTHER CHANGES)
+   FAISS + OpenAI Embedding Loader (SDK-COMPATIBLE)
 ------------------------------------------------------------- */
 import fs from "fs";
 import OpenAI from "openai";
@@ -61,7 +61,7 @@ function cosine(a, b) {
   return dot / (Math.sqrt(na) * Math.sqrt(nb));
 }
 
-/* --- FAISS Search Wrapper (OLD SDK COMPATIBLE) --- */
+/* --- FAISS Search using OLD OpenAI SDK syntax --- */
 async function searchFaiss(queryText, topK = 6) {
   const emb = await openai.Embeddings.create({
     model: "text-embedding-ada-002",
@@ -112,7 +112,7 @@ router.post("/check_invoice", async (req, res) => {
     // Parse invoice
     const parsed = await parseInvoice(file.data);
 
-    // NEW — FAISS search
+    // --- FAISS search ---
     console.log("🔎 Running FAISS search…");
     const faissHits = await searchFaiss(parsed.text, 6);
     console.log(
@@ -120,9 +120,9 @@ router.post("/check_invoice", async (req, res) => {
       faissHits.map((h) => h.score.toFixed(3))
     );
 
-    // Inject FAISS context into analysis
     const faissContext = faissHits.map((h) => h.text).join("\n\n");
 
+    // Analyse with FAISS context
     const aiReply = await analyseInvoice(parsed.text, flags, faissContext);
 
     // Save Word + PDF
