@@ -63,9 +63,9 @@ function cosine(a, b) {
   return dot / (Math.sqrt(na) * Math.sqrt(nb));
 }
 
-/* --- FAISS Search Wrapper (no changes elsewhere) --- */
+/* --- FAISS Search Wrapper (OLD SDK COMPATIBLE) --- */
 async function searchFaiss(queryText, topK = 6) {
-  const emb = await openai.embeddings.create({
+  const emb = await openai.createEmbedding({
     model: "text-embedding-ada-002",
     input: queryText,
   });
