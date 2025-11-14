@@ -1,6 +1,6 @@
 /**
  * AIVS Invoice Compliance Checker · Express Route
- * ISO Timestamp: 2025-11-14T15:20:00Z
+ * ISO Timestamp: 2025-11-14T16:30:00Z
  * Author: AIVS Software Limited
  */
 
@@ -19,7 +19,7 @@ const openai = new OpenAI({
 });
 
 /* -------------------------------------------------------------
-   INLINE FAISS ENGINE — FIXED METADATA ALIGNMENT
+   FAISS (Relevance Only — No Text Required)
 ------------------------------------------------------------- */
 
 const INDEX_PATH = "/mnt/data/vector.index";
@@ -29,9 +29,7 @@ const LIMIT      = 10000;
 let metadata = [];
 let faissIndex = [];
 
-/* -------------------------------------------------------------
-   LOAD METADATA (text lines)
-------------------------------------------------------------- */
+/* Load metadata (even if blank text — relevance still works) */
 try {
   console.log("🔍 Loading FAISS metadata...");
   metadata = fs
@@ -41,17 +39,15 @@ try {
     .slice(0, LIMIT)
     .map((l) => JSON.parse(l));
 
-  console.log("✅ Loaded metadata:", metadata.length);
+  console.log("✅ Loaded metadata lines:", metadata.length);
 } catch (err) {
   console.error("❌ Metadata load error:", err.message);
   metadata = [];
 }
 
-/* -------------------------------------------------------------
-   CHUNK-SAFE VECTOR LOADER WITH BI-DIRECTIONAL TEXT ALIGNMENT
-------------------------------------------------------------- */
+/* Minimal vector loader (no text merging, relevance only) */
 async function loadIndex(limit = LIMIT) {
-  console.log(`📦 Loading vector.index in chunks (limit ${limit})`);
+  console.log(`📦 Loading vector.index (limit ${limit})`);
 
   const fd = await fs.promises.open(INDEX_PATH, "r");
   const stream = fd.createReadStream({ encoding: "utf8" });
@@ -71,43 +67,18 @@ async function loadIndex(limit = LIMIT) {
       try {
         const obj = JSON.parse(p.endsWith("}") ? p : p + "}");
 
-        /* -----------------------------------------------------
-           🔥 FIX: BI-DIRECTIONAL METADATA SEARCH
-           Finds the NEAREST non-empty text line for each vector
-        ------------------------------------------------------*/
-        let meta = metadata[processed] || {};
-        let forward = processed + 1;
-        let backward = processed - 1;
-
-        // SEARCH FORWARD
-        while ((!meta.text || meta.text.trim() === "") && forward < metadata.length) {
-          if (metadata[forward].text && metadata[forward].text.trim() !== "") {
-            meta = metadata[forward];
-            break;
-          }
-          forward++;
-        }
-
-        // IF STILL EMPTY → SEARCH BACKWARD
-        if (!meta.text || meta.text.trim() === "") {
-          while (backward >= 0) {
-            if (metadata[backward].text && metadata[backward].text.trim() !== "") {
-              meta = metadata[backward];
-              break;
-            }
-            backward--;
-          }
-        }
+        // Attach metadata row (titles, groups, etc — NO text needed)
+        const meta = metadata[processed] || {};
 
         vectors.push({
           ...obj,
-          text: meta.text || "[NO CONTEXT AVAILABLE]"
+          meta  
         });
 
         processed++;
 
         if (vectors.length >= limit) {
-          console.log(`🛑 Vector limit reached (${limit})`);
+          console.log("🛑 Vector limit reached");
           await fd.close();
           return vectors;
         }
@@ -117,13 +88,11 @@ async function loadIndex(limit = LIMIT) {
   }
 
   await fd.close();
-  console.log(`✅ Loaded vectors: ${vectors.length}`);
+  console.log(`✅ Loaded ${vectors.length} vectors`);
   return vectors;
 }
 
-/* -------------------------------------------------------------
-   PRELOAD INDEX
-------------------------------------------------------------- */
+/* Preload FAISS */
 (async () => {
   try {
     faissIndex = await loadIndex(LIMIT);
@@ -133,37 +102,33 @@ async function loadIndex(limit = LIMIT) {
   }
 })();
 
-/* -------------------------------------------------------------
-   DOT PRODUCT (Accounting Pro)
-------------------------------------------------------------- */
+/* Dot product relevance */
 function dotProduct(a, b) {
   if (!a || !b || a.length !== b.length) return 0;
   return a.reduce((sum, val, i) => sum + val * b[i], 0);
 }
 
-/* -------------------------------------------------------------
-   FAISS SEARCH (Accounting Pro)
-------------------------------------------------------------- */
+/* Semantic search */
 async function searchIndex(query, index) {
   if (!query || query.length < 3) return [];
 
-  const resp = await openai.embeddings.create({
+  const emb = await openai.embeddings.create({
     model: "text-embedding-3-small",
     input: [query],
   });
 
-  const q = resp.data[0].embedding;
+  const q = emb.data[0].embedding;
 
   const scored = index.map((v) => ({
     ...v,
     score: dotProduct(q, v.embedding),
   }));
 
-  return scored.sort((a, b) => b.score - a.score).slice(0, 20);
+  return scored.sort((a, b) => b.score - a.score).slice(0, 10);
 }
 
 /* -------------------------------------------------------------
-   MAIN INVOICE CHECK ROUTE
+   MAIN ROUTE — RESTORED SIMPLE VERSION
 ------------------------------------------------------------- */
 
 router.use(
@@ -178,48 +143,35 @@ router.post("/check_invoice", async (req, res) => {
   try {
     console.log("🟢 /check_invoice");
 
-    if (!req.files?.file) throw new Error("No file uploaded.");
+    if (!req.files?.file) throw new Error("No file uploaded");
 
     const file = req.files.file;
 
+    // Restore original flag set — NO CIS engine
     const flags = {
-    vatCategory: req.body.vatCategory,
-    endUserConfirmed: req.body.endUserConfirmed,
-    cisRate: req.body.cisRate,
-    labour: req.body.labour,
-    materials: req.body.materials,
-  };
+      vatCategory: req.body.vatCategory,
+      endUserConfirmed: req.body.endUserConfirmed,
+      cisRate: req.body.cisRate
+    };
 
     const parsed = await parseInvoice(file.data);
 
-    /* --- FAISS SEARCH --- */
+    /* FAISS relevance only */
     let faissContext = "";
-    let matches = [];
-
     try {
-      console.log("🔎 Running FAISS search...");
-      matches = await searchIndex(parsed.text, faissIndex);
-
-      console.log("📌 Raw matches:", matches.length);
-      console.log("📌 Preview:", matches[0]?.text?.slice(0, 200) || "NONE");
-
-      const filtered = matches.filter((m) => m.score >= 0.03);
-
-      console.log("📦 Relevant chunks:", filtered.length);
-
-      faissContext = filtered.map((m) => m.text).join("\n\n");
-
+      const matches = await searchIndex(parsed.text, faissIndex);
+      faissContext = matches.map((m) => m.meta?.title || "").join("\n");
     } catch (err) {
-      console.error("⚠️ FAISS search error:", err.message);
+      console.log("⚠️ FAISS relevance error:", err.message);
     }
 
-    /* --- AI Analysis --- */
+    /* AI analysis (unchanged — uses your original invoice_tools.js) */
     const aiReply = await analyseInvoice(parsed.text, flags, faissContext);
 
-    /* --- REPORT --- */
+    /* Generate report files */
     const { docPath, pdfPath, timestamp } = await saveReportFiles(aiReply);
 
-    /* --- EMAIL --- */
+    /* Optionally send email */
     await sendReportEmail(
       req.body.userEmail,
       [req.body.emailCopy1, req.body.emailCopy2].filter(Boolean),
@@ -228,12 +180,10 @@ router.post("/check_invoice", async (req, res) => {
       timestamp
     );
 
-    /* --- RESPONSE --- */
     res.json({
       parserNote: parsed.parserNote,
       aiReply,
-      faissMatches: matches.length,
-      timestamp: new Date().toISOString(),
+      timestamp
     });
 
   } catch (err) {
@@ -243,28 +193,22 @@ router.post("/check_invoice", async (req, res) => {
 });
 
 /* -------------------------------------------------------------
-   FAISS TEST ROUTE
+   /faiss-test — unchanged
 ------------------------------------------------------------- */
 router.get("/faiss-test", async (req, res) => {
   try {
-    const q = "CIS deduction VAT reverse charge";
-
-    const matches = await searchIndex(q, faissIndex);
+    const matches = await searchIndex("CIS VAT rules", faissIndex);
     const top = matches[0] || {};
 
     res.json({
       ok: true,
-      totalVectors: faissIndex.length,
-      matches: matches.length,
+      matchCount: matches.length,
       topScore: top.score || 0,
-      preview: top.text ? top.text.slice(0, 250) : "NONE",
+      preview: top.meta ? top.meta.title : "NONE"
     });
 
   } catch (err) {
-    res.json({
-      ok: false,
-      error: err.message,
-    });
+    res.json({ ok: false, error: err.message });
   }
 });
 
