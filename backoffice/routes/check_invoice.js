@@ -1,115 +1,39 @@
 /**
  * AIVS Invoice Compliance Checker · Express Route
- * ISO Timestamp: 2025-11-14T12:40:00Z
+ * ISO Timestamp: 2025-11-14T13:00:00Z
  * Author: AIVS Software Limited
  */
 
 import express from "express";
 import fileUpload from "express-fileupload";
-import fs from "fs";
-import OpenAI from "openai";
 
 import { parseInvoice, analyseInvoice } from "../invoice_tools.js";
 import { saveReportFiles, sendReportEmail } from "../../server.js";
 
-const router = express.Router();
-const openai = new OpenAI(process.env.OPENAI_API_KEY);
+/* -------------------------------------------------------------
+   USE YOUR ACTUAL, WORKING FAISS ENGINE
+------------------------------------------------------------- */
+import { loadIndex, searchIndex } from "../../vector_store.js";
+
+let faissIndex = [];
 
 /* -------------------------------------------------------------
-   LOAD FAISS METADATA
+   PRELOAD FAISS (same as Accounting PRO)
 ------------------------------------------------------------- */
-
-const META_PATH = "/mnt/data/chunks_metadata.final.jsonl";
-let metadata = [];
-
-try {
-  console.log("🔍 Loading FAISS metadata...");
-  metadata = fs
-    .readFileSync(META_PATH, "utf-8")
-    .trim()
-    .split("\n")
-    .map((l) => JSON.parse(l));
-
-  console.log("✅ Loaded FAISS chunks:", metadata.length);
-} catch (err) {
-  console.error("❌ Failed to load FAISS metadata:", err.message);
-  metadata = [];
-}
-
-/* -------------------------------------------------------------
-   COSINE SIMILARITY
-------------------------------------------------------------- */
-
-function cosine(a, b) {
-  let dot = 0,
-    na = 0,
-    nb = 0;
-
-  for (let i = 0; i < a.length; i++) {
-    dot += a[i] * b[i];
-    na += a[i] * a[i];
-    nb += b[i] * b[i];
-  }
-
-  return dot / (Math.sqrt(na) * Math.sqrt(nb));
-}
-
-/* -------------------------------------------------------------
-   SAFE EMBEDDING FUNCTION (NO CRASHES)
-------------------------------------------------------------- */
-
-async function embedQuery(text) {
+(async () => {
   try {
-    const resp = await openai.embeddings.create({
-      model: "text-embedding-ada-002",
-      input: text,
-    });
-
-    if (!resp?.data?.[0]?.embedding) {
-      console.log("❌ OpenAI embedding error:", JSON.stringify(resp, null, 2));
-      return null;
-    }
-
-    return resp.data[0].embedding;
-
+    console.log("📦 Loading FAISS (chunk-safe) index…");
+    faissIndex = await loadIndex(50000);
+    console.log(`✅ Loaded ${faissIndex.length} FAISS vectors`);
   } catch (err) {
-    console.log("❌ OpenAI embedding exception:", err.message);
-    return null;
+    console.error("❌ Failed to preload FAISS:", err.message);
+    faissIndex = [];
   }
-}
-
-/* -------------------------------------------------------------
-   SAFE FAISS SEARCH (ALWAYS RETURNS, NEVER CRASHES)
-------------------------------------------------------------- */
-
-async function searchFaiss(text) {
-  try {
-    if (!metadata.length) {
-      console.log("⚠️ No FAISS metadata available.");
-      return [];
-    }
-
-    const qVec = await embedQuery(text);
-
-    if (!qVec) {
-      console.log("⚠️ No embedding returned. FAISS skipped.");
-      return [];
-    }
-
-    const scored = metadata.map((m) => ({
-      text: m.text,
-      score: cosine(qVec, m.embedding),
-    }));
-
-    return scored.sort((a, b) => b.score - a.score).slice(0, 20);
-
-  } catch (err) {
-    console.error("❌ FAISS search error:", err.message);
-    return [];
-  }
-}
+})();
 
 /* ------------------------------------------------------------- */
+
+const router = express.Router();
 
 router.use(
   fileUpload({
@@ -120,12 +44,11 @@ router.use(
 );
 
 /* -------------------------------------------------------------
-   MAIN ROUTE — FAISS ENABLED (SAFE)
+   MAIN ROUTE — FULL FAISS + invoice analysis
 ------------------------------------------------------------- */
-
 router.post("/check_invoice", async (req, res) => {
   try {
-    console.log("🟢 /check_invoice HIT");
+    console.log("🟢 /check_invoice");
 
     if (!req.files?.file) throw new Error("No file uploaded.");
 
@@ -140,29 +63,32 @@ router.post("/check_invoice", async (req, res) => {
     /* Parse invoice */
     const parsed = await parseInvoice(file.data);
 
-    /* FAISS search */
-    console.log("🔎 Running FAISS search…");
+    /* === FAISS SEARCH (YOUR WORKING VERSION) === */
+    let faissContext = "";
+    let matches = [];
 
-    const matches = await searchFaiss(parsed.text);
-    console.log("🔍 Raw FAISS matches:", matches.length);
-    console.log(
-      "🔍 Top match preview:",
-      matches[0]?.text?.slice(0, 200) || "NONE"
-    );
+    try {
+      console.log("🔎 Running FAISS search…");
+      matches = await searchIndex(parsed.text, faissIndex);
 
-    const filtered = matches.filter((m) => m.score >= 0.03);
-    console.log("📌 FAISS chunks used:", filtered.length);
+      console.log("📌 FAISS top matches:", matches.length);
+      console.log("📌 First match preview:", matches[0]?.text?.slice(0, 150) || "NONE");
 
-    const faissContext = filtered.map((m) => m.text).join("\n\n");
+      const filtered = matches.filter((m) => m.score >= 0.03);
+      faissContext = filtered.map((m) => m.text).join("\n\n");
+
+    } catch (err) {
+      console.log("⚠️ FAISS error:", err.message);
+    }
 
     /* AI analysis */
     const aiReply = await analyseInvoice(parsed.text, flags, faissContext);
 
-    /* Build reports */
+    /* Report files */
     const { docPath, pdfPath, timestamp } = await saveReportFiles(aiReply);
 
     /* Email */
-    const to = req.body.userEmail || "";
+    const to = req.body.userEmail;
     const ccList = [req.body.emailCopy1, req.body.emailCopy2].filter(Boolean);
 
     await sendReportEmail(to, ccList, docPath, pdfPath, timestamp);
@@ -171,7 +97,7 @@ router.post("/check_invoice", async (req, res) => {
     res.json({
       parserNote: parsed.parserNote,
       aiReply,
-      faissChunks: filtered.length,
+      faissMatches: matches.length,
       timestamp: new Date().toISOString(),
     });
 
