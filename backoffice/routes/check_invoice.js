@@ -66,7 +66,7 @@ function cosine(a, b) {
 /* --- FAISS Search Wrapper (no changes elsewhere) --- */
 async function searchFaiss(queryText, topK = 6) {
   const emb = await openai.embeddings.create({
-    model: "text-embedding-3-small",
+    model: "text-embedding-ada-002",
     input: queryText,
   });
 
