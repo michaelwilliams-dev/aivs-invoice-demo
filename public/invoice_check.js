@@ -167,7 +167,7 @@ ${JSON.stringify(response, null, 2)}
         dzElement.appendChild(notice);
 
         console.log("🔄 Auto-reset triggered by new file drop");
-        setTimeout(() => location.reload(), 1200);
+        setTimeout(() => window.location.replace(window.location.pathname), 1200);
         return false;
       }
 
