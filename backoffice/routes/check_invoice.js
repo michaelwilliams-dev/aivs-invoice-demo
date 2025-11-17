@@ -175,7 +175,7 @@ router.post("/check_invoice", async (req, res) => {
     await sendReportEmail(
       req.body.userEmail,
       [req.body.emailCopy1, req.body.emailCopy2].filter(Boolean),
-      aiReply
+      aiReply,
       docPath,
       pdfPath,
       timestamp
