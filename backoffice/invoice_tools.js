@@ -161,7 +161,7 @@ USE THIS FULL INVOICE TEMPLATE (BANK-FREE):
     <div>- This supply is <strong>${vatDecision.vatLabel}</strong>. 
          ${vatDecision.drc ? "DRC applies." : "The Domestic Reverse Charge does not apply."}</div>
     <div>- CIS applied at ${flags.cisRate}% on labour only.</div>
-    <div>- Please retain this invoice for your accounting records.</div>
+   
   </div>
 
 </div>
