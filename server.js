@@ -202,6 +202,20 @@ export async function sendReportEmail(to, ccList, aiReply, docPath, pdfPath, tim
           Subject: `AIVS Invoice Compliance Report · ${timestamp}`,
           HTMLPart: `
             <h3>Invoice Compliance Report – ${timestamp}</h3>
+
+            <h4 style="color:#4e65ac;">VAT / DRC Check</h4>
+            <p>${aiReply?.vat_check || "—"}</p>
+
+            <h4 style="color:#4e65ac;">CIS Check</h4>
+            <p>${aiReply?.cis_check || "—"}</p>
+
+            <h4 style="color:#4e65ac;">Required Wording</h4>
+            <p>${aiReply?.required_wording || "—"}</p>
+
+            <h4 style="color:#4e65ac;">Summary</h4>
+            <p>${aiReply?.summary || "—"}</p>
+
+            <hr />
             <p>Your report is attached in Word (.docx) and PDF formats.</p>
             <p>© AIVS Software Limited 2025 – Confidential Internal Advisory Copy.</p>
           `,
