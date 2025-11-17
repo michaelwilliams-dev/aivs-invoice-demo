@@ -35,10 +35,10 @@ function decideVatAndDRC(text, flags) {
   return {
     vatRate: reduced ? 5 : 20,
     vatLabel: reduced ? "Reduced rate 5%" : "Standard rate 20%",
-    drc: !endUser && !isNewBuild,
-    reason: endUser
-      ? "End-user/intermediary declared → DRC excluded."
-      : "Standard/reduced-rated supply → DRC may apply."
+      drc: !endUser && !isNewBuild,
+      reason: endUser
+        ? "End-user/intermediary declared → DRC excluded."
+        : "Standard/reduced-rated supply → DRC may apply."
   };
 }
 
@@ -47,98 +47,127 @@ export async function analyseInvoice(text, flags) {
 
   const prompt = `
 You are a UK accounting compliance expert (HMRC CIS & VAT).
-Use the user-supplied context below to check this invoice.
+You must check the invoice and return the corrected version in HTML.
 
-IMPORTANT SYSTEM RULES:
-- UNDER NO CIRCUMSTANCES include bank details, sort codes, account numbers,
-  IBANs, SWIFT codes, payment instructions, or any banking information.
-- REMOVE the entire bank section from the corrected invoice.
-- DO NOT create or hallucinate banking details.
-- The corrected invoice must contain NO reference to banking information at all.
+CRITICAL RULES:
+- Do NOT include bank details, sort codes, IBANs, SWIFT, or any payment info.
+- Do NOT hallucinate bank or payment details.
+- The invoice must contain ZERO banking information.
 
 Context:
-- VAT category: ${vatDecision.vatLabel}
+- VAT: ${vatDecision.vatLabel}
 - DRC applies: ${vatDecision.drc ? "Yes" : "No"}
 - CIS rate: ${flags.cisRate}%
 - Reason: ${vatDecision.reason}
 
-Check:
-1. Whether VAT and DRC treatment are correct.
-2. Whether CIS is calculated properly on the labour element.
-3. Whether required wording is present or missing.
-4. Provide corrected wording and compliance notes.
-   • If the invoice states “No VAT” but the supply is zero-rated, replace “No VAT” with “Zero-rated (0 %)” and include the correct statutory reference (VATA 1994 Sch 8 Group 5).
-   • Confirm that the Domestic Reverse Charge does not apply to zero-rated supplies.
+TASKS:
+1. Check VAT/DRC treatment.
+2. Check CIS calculation.
+3. Identify required/missing wording.
+4. Produce corrected invoice layout using the template below.
+5. Insert totals, VAT, CIS, subtotal, total due.
+6. Leave placeholders if required values cannot be extracted.
 
-Return JSON only in this structure:
+RETURN JSON IN THIS EXACT SHAPE:
 {
   "vat_check": "...",
   "cis_check": "...",
   "required_wording": "...",
-  "corrected_invoice": "<HTML layout>",
+  "corrected_invoice": "<HTML>",
   "summary": "..."
 }
 
-Use the following HTML invoice template when constructing corrected_invoice.
-***REMOVE BANK DETAILS SECTION ENTIRELY***
+USE THIS FULL INVOICE TEMPLATE (BANK-FREE):
 
 <template>
 <div style="max-width:820px;margin:0 auto;
             font:14px/1.45 -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial;color:#222">
 
+  <!-- HEADER -->
   <div style="border-bottom:3px solid #4e65ac;padding-bottom:8px;margin-bottom:16px">
     <div style="font-size:12px;color:#555">
-      Company Registration No: 15284926 · Registered Office: 7200 The Quorum, Oxford Business Park North,
-      Oxford, OX4 2JZ, United Kingdom
+      Company Registration No: 15284926 · Registered Office: 7200 The Quorum,
+      Oxford Business Park North, Oxford, OX4 2JZ, United Kingdom
     </div>
     <h1 style="margin:8px 0 0;font-size:22px;letter-spacing:.5px;color:#4e65ac">TAX INVOICE</h1>
   </div>
 
+  <!-- PARTIES -->
   <div style="display:flex;gap:24px;align-items:flex-start;margin-bottom:16px">
     <div style="flex:1">
       <div style="font-weight:600;margin-bottom:4px;color:#4e65ac">Bill To</div>
-      <div>Thakeham Homes</div>
-      <div>Thakeham House</div>
-      <div>Stane Street</div>
-      <div>Billingshurst</div>
-      <div>West Sussex RH14 9GN</div>
+      <div>[[CLIENT_NAME]]</div>
+      <div>[[CLIENT_ADDRESS_LINE_1]]</div>
+      <div>[[CLIENT_ADDRESS_LINE_2]]</div>
+      <div>[[CLIENT_ADDRESS_LINE_3]]</div>
+      <div>[[CLIENT_POSTCODE]]</div>
       <div>United Kingdom</div>
     </div>
     <div style="flex:1">
       <div style="font-weight:600;margin-bottom:4px;color:#4e65ac">From</div>
-      <div>FeKTA Limited</div>
-      <div>7200 The Quorum</div>
-      <div>Oxford Business Park North</div>
-      <div>Oxford OX4 2JX</div>
-      <div>VAT No: 454802785</div>
+      <div>[[SUPPLIER_NAME]]</div>
+      <div>[[SUPPLIER_ADDRESS_LINE_1]]</div>
+      <div>[[SUPPLIER_ADDRESS_LINE_2]]</div>
+      <div>[[SUPPLIER_ADDRESS_LINE_3]]</div>
+      <div>VAT No: [[VAT_NUMBER]]</div>
     </div>
   </div>
 
+  <!-- LINE ITEMS -->
   <table style="width:100%;border-collapse:collapse;margin-top:4px">
     <thead>
       <tr>
         <th style="text-align:left;padding:8px;border:1px solid #e7ebf3;background:#f6f8fb;color:#4e65ac">Description</th>
         <th style="text-align:right;padding:8px;border:1px solid #e7ebf3;background:#f6f8fb;color:#4e65ac">Qty</th>
         <th style="text-align:right;padding:8px;border:1px solid #e7ebf3;background:#f6f8fb;color:#4e65ac">Unit Price (£)</th>
-        <th style="text-align:right;padding:8px;border:1px solid #e7ebf3;background:#f6f8fb;color:#4e65ac">VAT</th>
-        <th style="text-align:right;padding:8px;border:1px solid #e7ebf3;background:#f6f8fb;color:#4e65ac">Amount (£)</th>
+        <th style="text-align:right;padding:8px;border:1px solid #e7ebf3;background:#f6f8fb;color:#4e65ac">VAT Rate</th>
+        <th style="text-align:right;padding:8px;border:1px solid #e7ebf3;background:#f6f8fb;color:#4e65ac">Line Total (£)</th>
       </tr>
     </thead>
+    <tbody>
+      [[LINE_ITEMS]]
+    </tbody>
   </table>
 
-  <!-- BANK DETAILS REMOVED BY SYSTEM REQUIREMENT -->
+  <!-- TOTALS -->
+  <div style="margin-top:20px;border-top:2px solid #e7ebf3;padding-top:14px">
 
-  <div style="margin-top:14px;padding:10px;border:1px dashed #cfd6e4;background:#f8fafc">
+    <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+      <div>Subtotal</div>
+      <div><strong>£[[SUBTOTAL]]</strong></div>
+    </div>
+
+    <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+      <div>VAT ([[VAT_RATE]]%)</div>
+      <div><strong>£[[VAT_AMOUNT]]</strong></div>
+    </div>
+
+    <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+      <div>CIS Deduction ([[CIS_RATE]]%)</div>
+      <div><strong>£[[CIS_AMOUNT]]</strong></div>
+    </div>
+
+    <div style="display:flex;justify-content:space-between;
+                font-size:17px;margin-top:10px;border-top:2px solid #d9dfe8;padding-top:10px">
+      <div><strong>Total Due</strong></div>
+      <div><strong>£[[TOTAL_DUE]]</strong></div>
+    </div>
+
+  </div>
+
+  <!-- NOTES -->
+  <div style="margin-top:20px;padding:10px;border:1px dashed #cfd6e4;background:#f8fafc">
     <div style="font-weight:600;color:#4e65ac;margin-bottom:6px">Notes</div>
-    <div>- This supply is <strong>zero-rated for VAT</strong> as it relates to a new-build dwelling (VATA 1994 Sch 8 Group 5).
-         The Domestic Reverse Charge does <strong>not</strong> apply to zero-rated supplies.</div>
-    <div>- <strong>CIS</strong> deduction applied at 20% on the labour element only.</div>
+    <div>- This supply is <strong>${vatDecision.vatLabel}</strong>. 
+         ${vatDecision.drc ? "DRC applies." : "The Domestic Reverse Charge does not apply."}</div>
+    <div>- CIS applied at ${flags.cisRate}% on labour only.</div>
+    <div>- Please retain this invoice for your accounting records.</div>
   </div>
 
 </div>
 </template>
 
-Invoice text:
+INVOICE TEXT:
 ${text}
 `;
 
@@ -151,22 +180,21 @@ ${text}
   try {
     const result = JSON.parse(res.choices[0].message.content);
 
-    // 🔒 FINAL SAFETY: Strip any bank details if the model tries to generate them
+    // SAFETY: Strip ANY remaining bank info
     if (result.corrected_invoice) {
       result.corrected_invoice = result.corrected_invoice
-        .replace(/bank.*?:.*?<br>/gi, "")
-        .replace(/bank.*?<div>/gi, "")
-        .replace(/account.*?:.*?<br>/gi, "")
-        .replace(/sort.?code.*?:.*?<br>/gi, "")
-        .replace(/iban.*?:.*?<br>/gi, "")
-        .replace(/swift.*?:.*?<br>/gi, "")
-        .replace(/payment instruction.*?<br>/gi, "")
-        .replace(/bank details/gi, "");
+        .replace(/bank.*?<.*?>/gi, "")
+        .replace(/sort.?code.*?<.*?>/gi, "")
+        .replace(/account.*?<.*?>/gi, "")
+        .replace(/iban.*?<.*?>/gi, "")
+        .replace(/swift.*?<.*?>/gi, "")
+        .replace(/payment.*?<.*?>/gi, "");
     }
 
     return result;
+
   } catch (err) {
-    console.error("⚠️ JSON parse error:", err.message);
+    console.error("JSON parse error:", err.message);
     return { error: "Invalid JSON returned from AI" };
   }
 }
