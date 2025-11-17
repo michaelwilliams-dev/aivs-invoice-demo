@@ -82,27 +82,28 @@ export async function saveReportFiles(aiReply) {
               new TextRun({ text: "AIVS Invoice Checker", bold: true, size: 28 }),
             ],
           }),
+          /* AI Compliance Report – Header */
           new Paragraph({
             children: [
               new TextRun({ text: "AI Compliance Report", bold: true, size: 30, color: "4e65ac" }),
             ],
             spacing: { after: 200 },
           }),
-          
+
           /* VAT / DRC Check */
           new Paragraph({
             children: [
-              new TextRun({ text: "VAT / DRC Check", bold: true, size: 24,color: "4e65ac" }),
+              new TextRun({ text: "VAT / DRC Check", bold: true, size: 24, color: "4e65ac" }),
             ],
             spacing: { before: 200, after: 80 },
           }),
           new Paragraph({
             children: [
-              new TextRun({ text: aiReply.vat_check || "—", size: 22, color: "4e65ac" }),
+              new TextRun({ text: aiReply.vat_check || "—", size: 22 }),   // BLACK
             ],
             spacing: { after: 200 },
           }),
-          
+
           /* CIS Check */
           new Paragraph({
             children: [
@@ -112,11 +113,11 @@ export async function saveReportFiles(aiReply) {
           }),
           new Paragraph({
             children: [
-              new TextRun({ text: aiReply.cis_check || "—", size: 22, color: "4e65ac" }),
+              new TextRun({ text: aiReply.cis_check || "—", size: 22 }),   // BLACK
             ],
             spacing: { after: 200 },
           }),
-          
+
           /* Required Wording */
           new Paragraph({
             children: [
@@ -126,11 +127,11 @@ export async function saveReportFiles(aiReply) {
           }),
           new Paragraph({
             children: [
-              new TextRun({ text: aiReply.required_wording || "—", size: 22, color: "4e65ac" }),
+              new TextRun({ text: aiReply.required_wording || "—", size: 22 }),  // BLACK
             ],
             spacing: { after: 200 },
           }),
-          
+
           /* Summary */
           new Paragraph({
             children: [
@@ -140,11 +141,11 @@ export async function saveReportFiles(aiReply) {
           }),
           new Paragraph({
             children: [
-              new TextRun({ text: aiReply.summary || "—", size: 22, color: "4e65ac" }),
+              new TextRun({ text: aiReply.summary || "—", size: 22 }),  // BLACK
             ],
             spacing: { after: 300 },
           }),
-
+        /* AI Compliance Report – End */
           ...(aiReply.corrected_invoice
             ? [
                 // ✅ Invoice note instead of formatted invoice section
