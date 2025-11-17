@@ -165,7 +165,7 @@ const mailjet = Mailjet.apiConnect(
   process.env.MJ_APIKEY_PRIVATE
 );
 
-export async function sendReportEmail(to, ccList, docPath, pdfPath, timestamp) {
+export async function sendReportEmail(to, ccList, aiReply, docPath, pdfPath, timestamp) {
   try {
     const recipients = [to, ...(ccList || [])]
       .map((e) => (e || "").trim())
