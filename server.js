@@ -84,7 +84,7 @@ export async function saveReportFiles(aiReply) {
           }),
           new Paragraph({
             children: [
-              new TextRun({ text: "AI Compliance Report", bold: true, size: 30 }),
+              new TextRun({ text: "AI Compliance Report", bold: true, size: 30, color: "4e65ac" }),
             ],
             spacing: { after: 200 },
           }),
@@ -92,13 +92,13 @@ export async function saveReportFiles(aiReply) {
           /* VAT / DRC Check */
           new Paragraph({
             children: [
-              new TextRun({ text: "VAT / DRC Check", bold: true, size: 24 }),
+              new TextRun({ text: "VAT / DRC Check", bold: true, size: 24,color: "4e65ac" }),
             ],
             spacing: { before: 200, after: 80 },
           }),
           new Paragraph({
             children: [
-              new TextRun({ text: aiReply.vat_check || "—", size: 22 }),
+              new TextRun({ text: aiReply.vat_check || "—", size: 22, color: "4e65ac" }),
             ],
             spacing: { after: 200 },
           }),
@@ -106,13 +106,13 @@ export async function saveReportFiles(aiReply) {
           /* CIS Check */
           new Paragraph({
             children: [
-              new TextRun({ text: "CIS Check", bold: true, size: 24 }),
+              new TextRun({ text: "CIS Check", bold: true, size: 24, color: "4e65ac" }),
             ],
             spacing: { before: 200, after: 80 },
           }),
           new Paragraph({
             children: [
-              new TextRun({ text: aiReply.cis_check || "—", size: 22 }),
+              new TextRun({ text: aiReply.cis_check || "—", size: 22, color: "4e65ac" }),
             ],
             spacing: { after: 200 },
           }),
@@ -120,13 +120,13 @@ export async function saveReportFiles(aiReply) {
           /* Required Wording */
           new Paragraph({
             children: [
-              new TextRun({ text: "Required Wording", bold: true, size: 24 }),
+              new TextRun({ text: "Required Wording", bold: true, size: 24, color: "4e65ac" }),
             ],
             spacing: { before: 200, after: 80 },
           }),
           new Paragraph({
             children: [
-              new TextRun({ text: aiReply.required_wording || "—", size: 22 }),
+              new TextRun({ text: aiReply.required_wording || "—", size: 22, color: "4e65ac" }),
             ],
             spacing: { after: 200 },
           }),
@@ -134,13 +134,13 @@ export async function saveReportFiles(aiReply) {
           /* Summary */
           new Paragraph({
             children: [
-              new TextRun({ text: "Summary", bold: true, size: 24 }),
+              new TextRun({ text: "Summary", bold: true, size: 24, color: "4e65ac" }),
             ],
             spacing: { before: 200, after: 80 },
           }),
           new Paragraph({
             children: [
-              new TextRun({ text: aiReply.summary || "—", size: 22 }),
+              new TextRun({ text: aiReply.summary || "—", size: 22, color: "4e65ac" }),
             ],
             spacing: { after: 300 },
           }),
