@@ -196,7 +196,7 @@ router.post("/check_invoice", async (req, res) => {
 
       // Extract subtotal from TOTAL NET £1,200
       let net = 0;
-      Const netMatch = text.replace(/\s+/g, ' ').match(/total\s*net[^0-9]*([\d,]+)/i);
+      const netMatch = text.replace(/\s+/g, ' ').match(/total\s*net[^0-9]*([\d,]+)/i);
       if (netMatch) net = parseFloat(netMatch[1].replace(/,/g, ""));
 
       const unit = item.qty > 0 ? net / item.qty : net;
