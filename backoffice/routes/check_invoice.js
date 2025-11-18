@@ -155,18 +155,17 @@ router.post("/check_invoice", async (req, res) => {
     function detectDRC(text) {
       if (!text) return false;
       const t = text.toLowerCase();
-    
+
       return (
-        (
-          t.includes("day") ||        // catches "4 days"
-          t.includes("days") ||
-          t.includes("labour") ||
-          t.includes("carpentry") ||
-          t.includes("deck") ||       // catches "Ali deck"
-          t.includes("installation")
-        )
+        (t.includes("labour") ||
+         t.includes("carpentry") ||
+         t.includes("construction") ||
+         t.includes("builder") ||
+         t.includes("joinery"))
         &&
-        (t.includes("vat") || t.includes("v.a.t"))
+        t.includes("vat")
+        &&
+        t.includes("20")
       );
     }
 
@@ -197,7 +196,7 @@ router.post("/check_invoice", async (req, res) => {
 
       // Extract subtotal from TOTAL NET £1,200
       let net = 0;
-      const netMatch = text.match(/TOTAL NET\s*£\s*([\d,]+)/i);
+      const netMatch = text.match(/TOTAL\s*NET[^0-9]*([\d,]+)/i);
       if (netMatch) net = parseFloat(netMatch[1].replace(/,/g, ""));
 
       const unit = item.qty > 0 ? net / item.qty : net;
