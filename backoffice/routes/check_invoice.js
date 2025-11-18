@@ -299,3 +299,28 @@ router.post("/check_invoice", async (req, res) => {
   } catch (err) {
     console.error("❌ /check_invoice error:", err.message);
     res.status(500).json({ error: err.message });
+      }
+}); // ← closes router.post("/check_invoice")
+
+/* -------------------------------------------------------------
+   /faiss-test — unchanged
+------------------------------------------------------------- */
+
+router.get("/faiss-test", async (req, res) => {
+  try {
+    const matches = await searchIndex("CIS VAT rules", faissIndex);
+    const top = matches[0] || {};
+
+    res.json({
+      ok: true,
+      matchCount: matches.length,
+      topScore: top.score || 0,
+      preview: top.meta ? top.meta.title : "NONE"
+    });
+
+  } catch (err) {
+    res.json({ ok: false, error: err.message });
+  }
+});
+
+export default router;
