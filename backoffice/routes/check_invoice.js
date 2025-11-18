@@ -155,17 +155,18 @@ router.post("/check_invoice", async (req, res) => {
     function detectDRC(text) {
       if (!text) return false;
       const t = text.toLowerCase();
-
+    
       return (
-        (t.includes("labour") ||
-         t.includes("carpentry") ||
-         t.includes("construction") ||
-         t.includes("builder") ||
-         t.includes("joinery"))
+        (
+          t.includes("day") ||        // catches "4 days"
+          t.includes("days") ||
+          t.includes("labour") ||
+          t.includes("carpentry") ||
+          t.includes("deck") ||       // catches "Ali deck"
+          t.includes("installation")
+        )
         &&
-        t.includes("vat")
-        &&
-        t.includes("20")
+        (t.includes("vat") || t.includes("v.a.t"))
       );
     }
 
