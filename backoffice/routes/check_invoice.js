@@ -155,7 +155,54 @@ router.post("/check_invoice", async (req, res) => {
     };
 
     const parsed = await parseInvoice(file.data);
+    /* -------------------------------------------------------------
+      DRC / VAT / CIS AUTO-CORRECTION ENGINE (NEW)
+    ------------------------------------------------------------- */
 
+    function detectDRC(parsed) {
+      // Basic detection — you can refine later if needed
+      return (
+        parsed.text.includes("labour") ||
+        parsed.text.includes("carpentry") ||
+        parsed.text.includes("construction") ||
+        parsed.text.includes("building")
+      );
+    }
+
+    function correctDRC(parsed) {
+      // Extract net from parsed invoice
+      let net = 0;
+      const netMatch = parsed.text.match(/(?:TOTAL NET|NET)\s*£?(\d+(?:\.\d+)?)/i);
+      if (netMatch) net = parseFloat(netMatch[1]);
+
+      // CIS = 20% of net
+      const cis = +(net * 0.20).toFixed(2);
+
+      // Total due = net - cis
+      const totalDue = +(net - cis).toFixed(2);
+
+      return {
+        vat_check: "VAT removed – Domestic Reverse Charge applies.",
+        cis_check: `CIS deduction at 20% applied: £${cis}`,
+        required_wording:
+          "Reverse Charge: Customer to account for VAT to HMRC. VAT Act 1994 Section 55A.",
+        summary: `Corrected: Net £${net}, CIS £${cis}, Total Due £${totalDue}`,
+        corrected_invoice: `
+          <p><strong>Corrected Invoice:</strong></p>
+          <p>Net: £${net}</p>
+          <p>VAT: Reverse Charge (Customer to account for VAT)</p>
+          <p>CIS (20%): £${cis}</p>
+          <p><strong>Total Due: £${totalDue}</strong></p>
+        `
+      };
+    }
+
+    let drcReply = null;
+
+    if (detectDRC(parsed)) {
+      console.log("⚠️ DRC detected – applying correction");
+      drcReply = correctDRC(parsed);
+    }
     /* FAISS relevance only */
     let faissContext = "";
     try {
@@ -166,8 +213,16 @@ router.post("/check_invoice", async (req, res) => {
     }
 
     /* AI analysis (unchanged — uses your original invoice_tools.js) */
-    const aiReply = await analyseInvoice(parsed.text, flags, faissContext);
+    
+    let aiReply;
 
+    if (drcReply) {
+      // DRC logic overrides the AI
+      aiReply = drcReply;
+    } else {
+      // Default: use original AI behaviour
+      aiReply = await analyseInvoice(parsed.text, flags, faissContext);
+    }
     /* Generate report files */
     const { docPath, pdfPath, timestamp } = await saveReportFiles(aiReply);
 
