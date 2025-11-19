@@ -65,7 +65,6 @@ async function loadIndex(limit = LIMIT) {
       if (!p.includes('"embedding"')) continue;
 
       try {
-        // Correct behaviour
         const obj = JSON.parse(p.endsWith("}") ? p : p + "}");
         const meta = metadata[processed] || {};
 
@@ -151,8 +150,7 @@ router.post("/check_invoice", async (req, res) => {
 
     /* -------------------------------------------------------------
        DRC AUTO-CORRECTION + LINE EXTRACTION
-       (ONLY THIS SECTION WAS UPDATED)
-    ------------------------------------------------------------- */
+------------------------------------------------------------- */
 
     function detectDRC(text) {
       if (!text) return false;
@@ -163,10 +161,8 @@ router.post("/check_invoice", async (req, res) => {
          t.includes("carpentry") ||
          t.includes("construction") ||
          t.includes("builder") ||
-         t.includes("joinery"))
-        &&
-        t.includes("vat")
-        &&
+         t.includes("joinery")) &&
+        t.includes("vat") &&
         t.includes("20")
       );
     }
@@ -177,12 +173,12 @@ router.post("/check_invoice", async (req, res) => {
       const qtyMatch = t.match(/(\d+)\s*(day|days|hr|hrs|hour|hours)/i);
       const qty = qtyMatch ? parseInt(qtyMatch[1]) : 1;
 
-      const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
+      const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
       let description = "Invoice item";
 
       lines.forEach((line, i) => {
         if (qtyMatch && line.includes(qtyMatch[1])) {
-          if (lines[i+1]) description = lines[i+1].trim();
+          if (lines[i + 1]) description = lines[i + 1].trim();
         }
       });
 
@@ -191,7 +187,6 @@ router.post("/check_invoice", async (req, res) => {
 
     /* ---------- UPDATED correctDRC() ---------- */
     function correctDRC(text) {
-
       const item = extractLineItem(text);
 
       /* --------- FINAL ORDERED EXTRACTION BLOCK ---------- */
@@ -203,14 +198,16 @@ router.post("/check_invoice", async (req, res) => {
 
       let net = null;
 
-      // STRICT PRIORITY ORDER
+      // STRICT PRIORITY ORDER — highest accuracy first
       net = net ?? extractNumber(/TOTAL\s*NET[^0-9]*([\d,.]+)/i, text);
       net = net ?? extractNumber(/SUBTOTAL[^0-9]*([\d,.]+)/i, text);
       net = net ?? extractNumber(/AMOUNT\s*EX\s*VAT[^0-9]*([\d,.]+)/i, text);
       net = net ?? extractNumber(/EX\s*VAT[^0-9]*([\d,.]+)/i, text);
 
+      // Medium reliability
       net = net ?? extractNumber(/NET\s*AMOUNT[^0-9]*([\d,.]+)/i, text);
 
+      // Lowest reliability — PAYABLE should NEVER override NET
       net = net ?? extractNumber(/NET\s*PAYABLE[^0-9]*([\d,.]+)/i, text);
       net = net ?? extractNumber(/AMOUNT\s*PAYABLE[^0-9]*([\d,.]+)/i, text);
       net = net ?? extractNumber(/PAYABLE[^0-9]*([\d,.]+)/i, text);
@@ -243,57 +240,42 @@ router.post("/check_invoice", async (req, res) => {
         vat_check: "VAT removed – Domestic Reverse Charge applies.",
         cis_check: `CIS deduction at 20% applied: £${cis}`,
         required_wording:
-          "Reverse Charge: Customer must account for VAT to HMRC (VAT Act 1994 Section 55A).",
+          "Reverse Charge: Customer must account for VAT to HMRC (VAT Act 1994 Section 55A).`,
         summary: `Corrected: Net £${net}, CIS £${cis}, Total Due £${totalDue}`,
 
         corrected_invoice: `
-          <div style="font-family:Arial, sans-serif; font-size:14px;">
-
+          <div style="font-family:Arial; font-size:14px;">
             <h3 style="color:#4e65ac; margin-bottom:10px;">Corrected Invoice</h3>
-
             <table style="width:100%; border-collapse:collapse; margin-bottom:12px;">
               <tr>
-                <th style="border:1px solid #ccc; background:#eef3ff; padding:8px; text-align:left;">Description</th>
-                <th style="border:1px solid #ccc; background:#eef3ff; padding:8px; text-align:right;">Qty</th>
-                <th style="border:1px solid #ccc; background:#eef3ff; padding:8px; text-align:right;">Unit (£)</th>
-                <th style="border:1px solid #ccc; background:#eef3ff; padding:8px; text-align:right;">Line Total (£)</th>
+                <th style="border:1px solid #ccc; background:#eef3ff; padding:8px;">Description</th>
+                <th style="border:1px solid #ccc; background:#eef3ff; padding:8px;">Qty</th>
+                <th style="border:1px solid #ccc; background:#eef3ff; padding:8px;">Unit (£)</th>
+                <th style="border:1px solid #ccc; background:#eef3ff; padding:8px;">Line Total (£)</th>
               </tr>
-
               <tr>
                 <td style="border:1px solid #ccc; padding:8px;">${item.description}</td>
-                <td style="border:1px solid #ccc; padding:8px; text-align:right;">${item.qty}</td>
-                <td style="border:1px solid #ccc; padding:8px; text-align:right;">${unit.toFixed(2)}</td>
-                <td style="border:1px solid #ccc; padding:8px; text-align:right;">${net.toFixed(2)}</td>
+                <td style="border:1px solid #ccc; padding:8px;">${item.qty}</td>
+                <td style="border:1px solid #ccc; padding:8px;">${unit.toFixed(2)}</td>
+                <td style="border:1px solid #ccc; padding:8px;">${net.toFixed(2)}</td>
               </tr>
-
               <tr>
-                <td colspan="3" style="border:1px solid #ccc; padding:8px; text-align:right; font-weight:bold;">VAT (Reverse Charge)</td>
-                <td style="border:1px solid #
-
-Here is the **remainder** — your full file, complete and ready to copy/paste.  
-(This continuation picks up exactly where the previous message ended.)
-
----
-
-# ✅ **check_invoice.js (continued)**  
-**Paste this directly after the last line you saw.**
-
-```js
-                <td style="border:1px solid #ccc; padding:8px; text-align:right;">£0.00</td>
+                <td colspan="3" style="border:1px solid #ccc; padding:8px; font-weight:bold;">VAT (Reverse Charge)</td>
+                <td style="border:1px solid #ccc; padding:8px;">£0.00</td>
               </tr>
-
               <tr>
-                <td colspan="3" style="border:1px solid #ccc; padding:8px; text-align:right;">CIS (20%)</td>
-                <td style="border:1px solid #ccc; padding:8px; text-align:right;">-£${cis.toFixed(2)}</td>
+                <td colspan="3" style="border:1px solid #ccc; padding:8px;">CIS (20%)</td>
+                <td style="border:1px solid #ccc; padding:8px;">-£${cis.toFixed(2)}</td>
               </tr>
-
               <tr>
-                <td colspan="3" style="border:1px solid #ccc; background:#dfe7ff; padding:8px; font-weight:bold; text-align:right;">Total Due</td>
-                <td style="border:1px solid #ccc; background:#dfe7ff; padding:8px; font-weight:bold; text-align:right;">£${totalDue.toFixed(2)}</td>
+                <td colspan="3" style="border:1px solid #ccc; background:#dfe7ff; padding:8px; font-weight:bold;">
+                  Total Due
+                </td>
+                <td style="border:1px solid #ccc; background:#dfe7ff; padding:8px; font-weight:bold;">
+                  £${totalDue.toFixed(2)}
+                </td>
               </tr>
-
             </table>
-
           </div>
         `
       };
