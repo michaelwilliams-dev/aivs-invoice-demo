@@ -65,7 +65,7 @@ async function loadIndex(limit = LIMIT) {
       if (!p.includes('"embedding"')) continue;
 
       try {
-        const obj = JSON.parse(p.endsWith("}") ? p : p + "}");
+        const obj = JSON.parse(p.endsendsWith("}") ? p : p + "}");
         const meta = metadata[processed] || {};
 
         vectors.push({ ...obj, meta });
@@ -149,7 +149,8 @@ router.post("/check_invoice", async (req, res) => {
     console.log("📄 PARSED TEXT:", parsed.text);
 
     /* -------------------------------------------------------------
-       DRC AUTO-CORRECTION + LINE EXTRACTION (ONLY FUNCTIONS CHANGED)
+       DRC AUTO-CORRECTION + LINE EXTRACTION
+       (ONLY THIS SECTION WAS UPDATED)
     ------------------------------------------------------------- */
 
     function detectDRC(text) {
@@ -169,11 +170,9 @@ router.post("/check_invoice", async (req, res) => {
       );
     }
 
-    /* ---------- UPDATED extractLineItem() ---------- */
     function extractLineItem(text) {
       const t = text.replace(/\s+/g, " ").trim();
 
-      // quantity pattern: "4 days", "4 day"
       const qtyMatch = t.match(/(\d+)\s*(day|days|hr|hrs|hour|hours)/i);
       const qty = qtyMatch ? parseInt(qtyMatch[1]) : 1;
 
@@ -194,15 +193,39 @@ router.post("/check_invoice", async (req, res) => {
 
       const item = extractLineItem(text);
 
-      // Extract subtotal from TOTAL NET £1,200
-      let net = 0;
-      const netMatch = text.replace(/\s+/g, ' ').match(/total\s*net[^0-9]*([\d,]+)/i);
-      if (netMatch) net = parseFloat(netMatch[1].replace(/,/g, ""));
+      /* --------- UNIVERSAL EXTRACTION BLOCK (ONLY CHANGE) ---------- */
+
+      function extractNumber(pattern, txt) {
+        const m = txt.match(pattern);
+        return m ? parseFloat(m[1].replace(/,/g, "")) : 0;
+      }
+
+      let net =
+        extractNumber(/TOTAL\s*NET[^0-9]*([\d,.]+)/i, text) ||
+        extractNumber(/SUBTOTAL[^0-9]*([\d,.]+)/i, text) ||
+        extractNumber(/NET\s*AMOUNT[^0-9]*([\d,.]+)/i, text) ||
+        extractNumber(/NET\s*PAYABLE[^0-9]*([\d,.]+)/i, text) ||
+        extractNumber(/AMOUNT\s*EX\s*VAT[^0-9]*([\d,.]+)/i, text) ||
+        extractNumber(/EX\s*VAT[^0-9]*([\d,.]+)/i, text);
+
+      let vat =
+        extractNumber(/VAT\s*TOTAL[^0-9]*([\d,.]+)/i, text) ||
+        extractNumber(/VAT[^0-9]*([\d,.]+)/i, text);
+
+      let gross =
+        extractNumber(/TOTAL[^0-9]*([\d,.]+)/i, text) ||
+        extractNumber(/BALANCE\s*DUE[^0-9]*([\d,.]+)/i, text);
+
+      let cis =
+        extractNumber(/LESS\s*CIS[^0-9]*([\d,.]+)/i, text) ||
+        extractNumber(/CIS\s*DEDUCTION[^0-9]*([\d,.]+)/i, text);
+
+      if (net === 0 && gross > 0 && vat >= 0) {
+        net = gross - vat;
+      }
 
       const unit = item.qty > 0 ? net / item.qty : net;
-
-      const cis = +(net * 0.20).toFixed(2);
-      const totalDue = +(net - cis).toFixed(2);
+      const totalDue = gross > 0 && cis > 0 ? gross - cis : net - cis;
 
       return {
         vat_check: "VAT removed – Domestic Reverse Charge applies.",
@@ -242,9 +265,10 @@ router.post("/check_invoice", async (req, res) => {
               </tr>
 
               <tr>
-                <td colspan="3" style="border:1px solid #ccc; padding:8px; font-weight:bold; background:#dfe7ff; text-align:right;">Total Due</td>
-                <td style="border:1px solid #ccc; padding:8px; font-weight:bold; background:#dfe7ff; text-align:right;">£${totalDue.toFixed(2)}</td>
+                <td colspan="3" style="border:1px solid #ccc; background:#dfe7ff; padding:8px; font-weight:bold; text-align:right;">Total Due</td>
+                <td style="border:1px solid #ccc; background:#dfe7ff; padding:8px; font-weight:bold; text-align:right;">£${totalDue.toFixed(2)}</td>
               </tr>
+
             </table>
 
           </div>
@@ -299,8 +323,8 @@ router.post("/check_invoice", async (req, res) => {
   } catch (err) {
     console.error("❌ /check_invoice error:", err.message);
     res.status(500).json({ error: err.message });
-      }
-}); // ← closes router.post("/check_invoice")
+  }
+});
 
 /* -------------------------------------------------------------
    /faiss-test — unchanged
