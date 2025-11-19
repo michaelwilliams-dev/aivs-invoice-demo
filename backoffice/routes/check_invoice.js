@@ -65,7 +65,7 @@ async function loadIndex(limit = LIMIT) {
       if (!p.includes('"embedding"')) continue;
 
       try {
-        const obj = JSON.parse(p.endsendsWith("}") ? p : p + "}");
+        const obj = JSON.parse(p.endsWith("}") ? p : p + "}");
         const meta = metadata[processed] || {};
 
         vectors.push({ ...obj, meta });
