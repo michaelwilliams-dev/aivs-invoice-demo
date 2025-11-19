@@ -23,8 +23,8 @@ const openai = new OpenAI({
 ------------------------------------------------------------- */
 
 const INDEX_PATH = "/mnt/data/vector.index";
-const META_PATH = "/mnt/data/chunks_metadata.final.jsonl";
-const LIMIT = 10000;
+const META_PATH  = "/mnt/data/chunks_metadata.final.jsonl";
+const LIMIT      = 10000;
 
 let metadata = [];
 let faissIndex = [];
@@ -67,8 +67,8 @@ async function loadIndex(limit = LIMIT) {
       try {
         const obj = JSON.parse(p.endsWith("}") ? p : p + "}");
         const meta = metadata[processed] || {};
-
         vectors.push({ ...obj, meta });
+
         processed++;
 
         if (vectors.length >= limit) {
@@ -149,7 +149,7 @@ router.post("/check_invoice", async (req, res) => {
     console.log("📄 PARSED TEXT:", parsed.text);
 
     /* -------------------------------------------------------------
-       DRC AUTO-CORRECTION + LINE EXTRACTION (ORIGINAL VERSION)
+       DRC AUTO-CORRECTION (WORKS FOR BOTH INVOICE TYPES)
     ------------------------------------------------------------- */
 
     function detectDRC(text) {
@@ -185,17 +185,46 @@ router.post("/check_invoice", async (req, res) => {
       return { description, qty };
     }
 
+    /* ---------- UNIVERSAL correctDRC() — WORKS FOR ALL FORMATS ---------- */
+
     function correctDRC(text) {
       const item = extractLineItem(text);
 
-      let net = 0;
-      const netMatch = text.match(/TOTAL NET\s*£\s*([\d,]+)/i);
-      if (netMatch) net = parseFloat(netMatch[1].replace(/,/g, ""));
+      function extract(pattern) {
+        const m = text.match(pattern);
+        return m ? parseFloat(m[1].replace(/,/g, "")) : null;
+      }
+
+      let net =
+        extract(/TOTAL\s*NET[^0-9]*([\d,.]+)/i) ||
+        extract(/SUBTOTAL[^0-9]*([\d,.]+)/i) ||
+        extract(/AMOUNT\s*EX\s*VAT[^0-9]*([\d,.]+)/i) ||
+        extract(/EX\s*VAT[^0-9]*([\d,.]+)/i) ||
+        extract(/NET\s*AMOUNT[^0-9]*([\d,.]+)/i) ||
+        extract(/NET\s*PAYABLE[^0-9]*([\d,.]+)/i) ||
+        extract(/AMOUNT\s*PAYABLE[^0-9]*([\d,.]+)/i);
+
+      if (net == null) net = 0;
+
+      const vat =
+        extract(/VAT\s*TOTAL[^0-9]*([\d,.]+)/i) ||
+        extract(/VAT[^0-9]*([\d,.]+)/i) ||
+        0;
+
+      const gross =
+        extract(/BALANCE\s*DUE[^0-9]*([\d,.]+)/i) ||
+        extract(/TOTAL[^0-9]*([\d,.]+)/i) ||
+        0;
+
+      const cis =
+        extract(/LESS\s*CIS[^0-9]*([\d,.]+)/i) ||
+        extract(/CIS\s*DEDUCTION[^0-9]*([\d,.]+)/i) ||
+        0;
+
+      if (net === 0 && gross > 0 && vat >= 0) net = +(gross - vat).toFixed(2);
 
       const unit = item.qty > 0 ? net / item.qty : net;
-
-      const cis = +(net * 0.2).toFixed(2);
-      const totalDue = +(net - cis).toFixed(2);
+      const totalDue = gross > 0 ? gross - cis : net - cis;
 
       return {
         vat_check: "VAT removed – Domestic Reverse Charge applies.",
@@ -208,28 +237,28 @@ router.post("/check_invoice", async (req, res) => {
             <h3 style="color:#4e65ac; margin-bottom:10px;">Corrected Invoice</h3>
             <table style="width:100%; border-collapse:collapse; margin-bottom:12px;">
               <tr>
-                <th style="border:1px solid #ccc; background:#eef3ff; padding:8px; text-align:left;">Description</th>
-                <th style="border:1px solid #ccc; background:#eef3ff; padding:8px; text-align:right;">Qty</th>
-                <th style="border:1px solid #ccc; background:#eef3ff; padding:8px; text-align:right;">Unit (£)</th>
-                <th style="border:1px solid #ccc; background:#eef3ff; padding:8px; text-align:right;">Line Total (£)</th>
+                <th>Description</th>
+                <th style="text-align:right">Qty</th>
+                <th style="text-align:right">Unit (£)</th>
+                <th style="text-align:right">Line Total (£)</th>
               </tr>
               <tr>
-                <td style="border:1px solid #ccc; padding:8px;">${item.description}</td>
-                <td style="border:1px solid #ccc; padding:8px; text-align:right;">${item.qty}</td>
-                <td style="border:1px solid #ccc; padding:8px; text-align:right;">${unit.toFixed(2)}</td>
-                <td style="border:1px solid #ccc; padding:8px; text-align:right;">${net.toFixed(2)}</td>
+                <td>${item.description}</td>
+                <td style="text-align:right">${item.qty}</td>
+                <td style="text-align:right">${unit.toFixed(2)}</td>
+                <td style="text-align:right">${net.toFixed(2)}</td>
               </tr>
               <tr>
-                <td colspan="3" style="border:1px solid #ccc; padding:8px; text-align:right; font-weight:bold;">VAT (Reverse Charge)</td>
-                <td style="border:1px solid #ccc; padding:8px; text-align:right;">£0.00</td>
+                <td colspan="3" style="text-align:right;font-weight:bold">VAT (Reverse Charge)</td>
+                <td style="text-align:right">£0.00</td>
               </tr>
               <tr>
-                <td colspan="3" style="border:1px solid #ccc; padding:8px; text-align:right;">CIS (20%)</td>
-                <td style="border:1px solid #ccc; padding:8px; text-align:right;">-£${cis.toFixed(2)}</td>
+                <td colspan="3" style="text-align:right">CIS (20%)</td>
+                <td style="text-align:right">-£${cis.toFixed(2)}</td>
               </tr>
               <tr>
-                <td colspan="3" style="border:1px solid #ccc; padding:8px; font-weight:bold; background:#dfe7ff; text-align:right;">Total Due</td>
-                <td style="border:1px solid #ccc; padding:8px; font-weight:bold; background:#dfe7ff; text-align:right;">£${totalDue.toFixed(2)}</td>
+                <td colspan="3" style="text-align:right;font-weight:bold;background:#eef2ff">Total Due</td>
+                <td style="text-align:right;font-weight:bold;background:#eef2ff">£${totalDue.toFixed(2)}</td>
               </tr>
             </table>
           </div>
@@ -237,13 +266,15 @@ router.post("/check_invoice", async (req, res) => {
       };
     }
 
-    /* Apply DRC override if needed */
+    /* ---------------- END PART 1 ---------------- */
+      /* Apply DRC override if needed */
     let drcResult = null;
     if (parsed.text && detectDRC(parsed.text)) {
       console.log("⚠️ DRC override applied");
       drcResult = correctDRC(parsed.text);
     }
 
+    /* FAISS relevance only */
     let faissContext = "";
     try {
       const matches = await searchIndex(parsed.text, faissIndex);
@@ -252,6 +283,7 @@ router.post("/check_invoice", async (req, res) => {
       console.log("⚠️ FAISS relevance error:", err.message);
     }
 
+    /* AI or override */
     let aiReply;
     if (drcResult) {
       aiReply = drcResult;
@@ -259,8 +291,10 @@ router.post("/check_invoice", async (req, res) => {
       aiReply = await analyseInvoice(parsed.text, flags, faissContext);
     }
 
+    /* Generate report */
     const { docPath, pdfPath, timestamp } = await saveReportFiles(aiReply);
 
+    /* Optional email */
     await sendReportEmail(
       req.body.userEmail,
       [req.body.emailCopy1, req.body.emailCopy2].filter(Boolean),
@@ -270,18 +304,18 @@ router.post("/check_invoice", async (req, res) => {
       timestamp
     );
 
+    /* Success Response */
     res.json({
       parserNote: parsed.parserNote,
       aiReply,
       timestamp,
     });
+
   } catch (err) {
     console.error("❌ /check_invoice error:", err.message);
-    res.status(500).json({
-      error: err.message,
-    });
+    res.status(500).json({ error: err.message });
   }
-}); // closes router.post("/check_invoice")
+}); // ← closes router.post("/check_invoice")
 
 /* -------------------------------------------------------------
    /faiss-test — unchanged
@@ -298,6 +332,7 @@ router.get("/faiss-test", async (req, res) => {
       topScore: top.score || 0,
       preview: top.meta ? top.meta.title : "NONE",
     });
+
   } catch (err) {
     res.json({ ok: false, error: err.message });
   }
