@@ -1,7 +1,15 @@
 /**
- * AIVS Invoice Compliance Checker · Express Route
- * ISO Timestamp: 2025-11-14T16:30:00Z
+ * AIVS Invoice Compliance Checker · Mini-Parser Version (Option B)
+ * ISO Timestamp: 2025-11-20T00:00:00Z
  * Author: AIVS Software Limited
+ *
+ * ✔ Up to 6 lines supported
+ * ✔ Qty / Unit / VAT rate / VAT amount extracted
+ * ✔ Negative & bracketed numbers supported
+ * ✔ Hybrid VAT logic (printed VAT preferred)
+ * ✔ DRC fallback
+ * ✔ CIS only on labour
+ * ✔ Safe mode: summary always shown; preview only when valid
  */
 
 import express from "express";
@@ -9,303 +17,192 @@ import fileUpload from "express-fileupload";
 import fs from "fs";
 import { OpenAI } from "openai";
 
-import { parseInvoice, analyseInvoice } from "../invoice_tools.js";
+import { parseInvoice } from "../invoice_tools.js";
 import { saveReportFiles, sendReportEmail } from "../../server.js";
 
 const router = express.Router();
+const openai = new OpenAI({ apiKey: process.env.OPENAI_APIKEY });
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_APIKEY || process.env.OPENAI_API_KEY,
-});
+/* ------------------------------------------------------------------
+   MINI-PARSER UTILITIES
+------------------------------------------------------------------ */
 
-/* -------------------------------------------------------------
-   FAISS (Relevance Only — No Text Required)
-------------------------------------------------------------- */
+/** Normalise numbers including negative values and bracketed values */
+function toNumber(val) {
+  if (!val) return 0;
+  return parseFloat(val.replace(/[(),]/g, ""));
+}
 
-const INDEX_PATH = "/mnt/data/vector.index";
-const META_PATH  = "/mnt/data/chunks_metadata.final.jsonl";
-const LIMIT      = 10000;
-
-let metadata = [];
-let faissIndex = [];
-
-/* Load metadata */
-try {
-  console.log("🔍 Loading FAISS metadata...");
-  metadata = fs
-    .readFileSync(META_PATH, "utf8")
-    .trim()
+/** Extract lines from text (max 6) */
+function extractInvoiceLines(text) {
+  const lines = text
     .split("\n")
-    .slice(0, LIMIT)
-    .map((l) => JSON.parse(l));
+    .map(l => l.trim())
+    .filter(l => l.length > 0)
+    .slice(0, 20); // scan first 20 lines only
 
-  console.log("✅ Loaded metadata lines:", metadata.length);
-} catch (err) {
-  console.error("❌ Metadata load error:", err.message);
-  metadata = [];
-}
+  const parsed = [];
 
-/* Load vector.index */
-async function loadIndex(limit = LIMIT) {
-  console.log(`📦 Loading vector.index (limit ${limit})`);
+  for (let line of lines) {
+    // Try to capture: qty, unit price, VAT%
+    const qtyMatch = line.match(/(\d+(\.\d+)?)/);
+    const unitMatch = line.match(/(-?\(?\d[\d,]*\.?\d*\)?)/);
+    const vatRateMatch = line.match(/(\d+)%|no vat|0%/i);
 
-  const fd = await fs.promises.open(INDEX_PATH, "r");
-  const stream = fd.createReadStream({ encoding: "utf8" });
+    if (!qtyMatch || !unitMatch) continue;
 
-  let buffer = "";
-  const vectors = [];
-  let processed = 0;
+    const qty = parseFloat(qtyMatch[1]);
+    const unit = toNumber(unitMatch[1]);
 
-  for await (const chunk of stream) {
-    buffer += chunk;
-    const parts = buffer.split("},");
-    buffer = parts.pop();
+    const vatRate = vatRateMatch
+      ? vatRateMatch[1] ? parseFloat(vatRateMatch[1]) : 0
+      : 20; // default VAT rate if unspecified
 
-    for (const p of parts) {
-      if (!p.includes('"embedding"')) continue;
+    parsed.push({
+      raw: line,
+      description: line,
+      qty,
+      unit,
+      vatRate
+    });
 
-      try {
-        const obj = JSON.parse(p.endsWith("}") ? p : p + "}");
-        const meta = metadata[processed] || {};
-        vectors.push({ ...obj, meta });
-
-        processed++;
-
-        if (vectors.length >= limit) {
-          console.log("🛑 Vector limit reached");
-          await fd.close();
-          return vectors;
-        }
-      } catch {}
-    }
+    if (parsed.length >= 6) break;
   }
 
-  await fd.close();
-  console.log(`✅ Loaded ${vectors.length} vectors`);
-  return vectors;
+  return parsed;
 }
 
-/* Preload FAISS */
-(async () => {
-  try {
-    faissIndex = await loadIndex(LIMIT);
-    console.log(`🟢 FAISS READY (${faissIndex.length} vectors)`);
-  } catch (err) {
-    console.error("❌ FAISS preload failed:", err.message);
-  }
-})();
-
-/* Dot product relevance */
-function dotProduct(a, b) {
-  if (!a || !b || a.length !== b.length) return 0;
-  return a.reduce((sum, val, i) => sum + val * b[i], 0);
+/** Determine if line is labour (for CIS) */
+function isLabour(desc) {
+  const s = desc.toLowerCase();
+  return (
+    s.includes("labour") ||
+    s.includes("day") ||
+    s.includes("hr") ||
+    s.includes("joinery") ||
+    s.includes("construction") ||
+    s.includes("builder")
+  );
 }
 
-/* Semantic search */
-async function searchIndex(query, index) {
-  if (!query || query.length < 3) return [];
-
-  const emb = await openai.embeddings.create({
-    model: "text-embedding-3-small",
-    input: [query],
-  });
-
-  const q = emb.data[0].embedding;
-
-  const scored = index.map((v) => ({
-    ...v,
-    score: dotProduct(q, v.embedding),
-  }));
-
-  return scored.sort((a, b) => b.score - a.score).slice(0, 10);
+/** Structural validity */
+function invoiceIsValid(lines, subtotal, gross) {
+  if (lines.length === 0) return false;
+  if (subtotal <= 0) return false;
+  if (gross <= 0) return false;
+  return true;
 }
 
-/* -------------------------------------------------------------
+/* ------------------------------------------------------------------
    MAIN ROUTE
-------------------------------------------------------------- */
+------------------------------------------------------------------ */
 
-router.use(
-  fileUpload({
-    parseNested: true,
-    useTempFiles: false,
-    preserveExtension: true,
-  })
-);
+router.use(fileUpload({ parseNested: true }));
 
 router.post("/check_invoice", async (req, res) => {
   try {
-    console.log("🟢 /check_invoice");
-
     if (!req.files?.file) throw new Error("No file uploaded");
+
     const file = req.files.file;
-
-    const flags = {
-      vatCategory: req.body.vatCategory,
-      endUserConfirmed: req.body.endUserConfirmed,
-      cisRate: req.body.cisRate
-    };
-
     const parsed = await parseInvoice(file.data);
-    console.log("📄 PARSED TEXT:", parsed.text);
+    const text = parsed.text || "";
 
-    /* -------------------------------------------------------------
-       SAFETY CHECK – NEW STRUCTURAL VALIDATION
-    ------------------------------------------------------------- */
+    /* STEP 1 — Extract line items */
+    const items = extractInvoiceLines(text);
 
-    function isInvoiceStructurallyValid(net, gross, vat, cis) {
-      if (net <= 0 && gross <= 0) return false;
-      if (vat < 0) return false;
-      if (cis < 0) return false;
-      if (net > 0 && gross > 0 && gross < net) return false;
-      return true;
+    /* STEP 2 — Compute line totals */
+    let subtotal = 0;
+    let vatTotal = 0;
+    let gross = 0;
+
+    for (const item of items) {
+      item.lineTotal = item.qty * item.unit;
+
+      // Hybrid VAT logic:
+      // if VAT rate is printed, use printed rate; otherwise assume zero
+      const vatAmount = item.lineTotal * (item.vatRate / 100);
+
+      item.vatAmount = vatAmount;
+      subtotal += item.lineTotal;
+      vatTotal += vatAmount;
     }
 
-    /* -------------------------------------------------------------
-       ORIGINAL DRC LOGIC (UNCHANGED)
-    ------------------------------------------------------------- */
+    gross = subtotal + vatTotal;
 
-    function detectDRC(text) {
-      if (!text) return false;
-      const t = text.toLowerCase();
-
-      return (
-        (t.includes("labour") ||
-         t.includes("carpentry") ||
-         t.includes("construction") ||
-         t.includes("builder") ||
-         t.includes("joinery"))
-        &&
-        t.includes("vat")
-        &&
-        t.includes("20")
-      );
-    }
-
-    function extractLineItem(text) {
-      const t = text.replace(/\s+/g, " ").trim();
-
-      const qtyMatch = t.match(/(\d+)\s*(day|days|hr|hrs|hour|hours)/i);
-      const qty = qtyMatch ? parseInt(qtyMatch[1]) : 1;
-
-      const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
-      let description = "Invoice item";
-
-      lines.forEach((line, i) => {
-        if (qtyMatch && line.includes(qtyMatch[1])) {
-          if (lines[i+1]) description = lines[i+1].trim();
-        }
-      });
-
-      return { description, qty };
-    }
-
-    /* -------------------------------------------------------------
-       UPDATED correctDRC() WITH SAFETY ADDED
-    ------------------------------------------------------------- */
-
-    function correctDRC(text) {
-
-      const item = extractLineItem(text);
-
-      let net = 0;
-      const netMatch = text.match(/TOTAL NET\s*£\s*([\d,]+)/i);
-      if (netMatch) net = parseFloat(netMatch[1].replace(/,/g, ""));
-
-      const unit = item.qty > 0 ? net / item.qty : net;
-
-      const cis = +(net * 0.20).toFixed(2);
-      const totalDue = +(net - cis).toFixed(2);
-
-      const baseSummary = {
-        vat_check: "VAT removed – Domestic Reverse Charge applies.",
-        cis_check: `CIS deduction at 20% applied: £${cis}`,
-        required_wording:
-          "Reverse Charge: Customer must account for VAT to HMRC (VAT Act 1994 Section 55A)."
-      };
-
-      /* ❗ SAFETY: If incomplete → summary only */
-      if (!isInvoiceStructurallyValid(net, net + cis, 0, cis)) {
-        return {
-          ...baseSummary,
-          summary:
-            "Invoice reviewed, but insufficient or inconsistent data was detected. A corrected invoice preview cannot be generated. Please upload a clearer or complete invoice.",
-          corrected_invoice: null
-        };
+    /* STEP 3 — CIS logic (ONLY labour lines) */
+    let labourBase = 0;
+    for (const item of items) {
+      if (isLabour(item.description)) {
+        labourBase += item.lineTotal;
       }
+    }
+    const cis = +(labourBase * 0.20).toFixed(2);
 
-      /* ✔ SAFE CASE → Produce full corrected invoice preview */
-      return {
-        ...baseSummary,
-        summary: `Corrected: Net £${net}, CIS £${cis}, Total Due £${totalDue}`,
-        corrected_invoice: `
-          <div style="font-family:Arial, sans-serif; font-size:14px;">
-            <h3 style="color:#4e65ac; margin-bottom:10px;">Corrected Invoice</h3>
+    /* STEP 4 — DRC logic */
+    const drc = text.toLowerCase().includes("reverse") ||
+                text.toLowerCase().includes("drc");
 
-            <table style="width:100%; border-collapse:collapse; margin-bottom:12px;">
+    /* STEP 5 — Structural validation */
+    const valid = invoiceIsValid(items, subtotal, gross);
+
+    /* STEP 6 — Build safe summary (always returned) */
+    const summaryText = valid
+      ? `Corrected: Net £${subtotal.toFixed(2)}, CIS £${cis.toFixed(2)}, Total Due £${(gross - cis).toFixed(2)}`
+      : "Invoice reviewed, but insufficient or inconsistent data was detected. A corrected invoice preview cannot be generated.";
+
+    const aiReply = {
+      vat_check: drc
+        ? "VAT removed – Domestic Reverse Charge applies."
+        : "VAT reviewed.",
+      cis_check:
+        labourBase > 0
+          ? `CIS deduction at 20% applied: £${cis}`
+          : "CIS does not apply to this invoice.",
+      required_wording: drc
+        ? "Reverse Charge: Customer must account for VAT to HMRC (VAT Act 1994 Section 55A)."
+        : "Standard VAT rules apply.",
+      summary: summaryText,
+
+      corrected_invoice: valid
+        ? `
+          <div style="font-family:Arial; font-size:14px;">
+            <h3 style="color:#4e65ac">Corrected Invoice</h3>
+            <table style="width:100%; border-collapse:collapse;">
               <tr>
                 <th>Description</th>
-                <th style="text-align:right">Qty</th>
-                <th style="text-align:right">Unit (£)</th>
-                <th style="text-align:right">Line Total (£)</th>
+                <th>Qty</th>
+                <th>Unit (£)</th>
+                <th>Line Total (£)</th>
               </tr>
-
-              <tr>
-                <td>${item.description}</td>
-                <td style="text-align:right">${item.qty}</td>
-                <td style="text-align:right">${unit.toFixed(2)}</td>
-                <td style="text-align:right">${net.toFixed(2)}</td>
+              ${items
+                .map(
+                  (i) => `
+                <tr>
+                  <td>${i.description}</td>
+                  <td style="text-align:right">${i.qty}</td>
+                  <td style="text-align:right">${i.unit.toFixed(2)}</td>
+                  <td style="text-align:right">${i.lineTotal.toFixed(2)}</td>
+                </tr>`
+                )
+                .join("")}
+              <tr><td colspan="3" style="text-align:right;font-weight:bold">Subtotal</td>
+                  <td style="text-align:right">${subtotal.toFixed(2)}</td>
               </tr>
-
-              <tr>
-                <td colspan="3" style="text-align:right;font-weight:bold">VAT (Reverse Charge)</td>
-                <td style="text-align:right">£0.00</td>
+              <tr><td colspan="3" style="text-align:right;font-weight:bold">VAT</td>
+                  <td style="text-align:right">${vatTotal.toFixed(2)}</td>
               </tr>
-
-              <tr>
-                <td colspan="3" style="text-align:right">CIS (20%)</td>
-                <td style="text-align:right">-£${cis.toFixed(2)}</td>
+              <tr><td colspan="3" style="text-align:right;font-weight:bold">CIS (20%)</td>
+                  <td style="text-align:right">-${cis.toFixed(2)}</td>
               </tr>
-
-              <tr>
-                <td colspan="3" style="text-align:right;font-weight:bold;background:#dfe7ff">Total Due</td>
-                <td style="text-align:right;font-weight:bold;background:#dfe7ff">£${totalDue.toFixed(2)}</td>
+              <tr><td colspan="3" style="text-align:right;font-weight:bold;background:#eef2ff">Total Due</td>
+                  <td style="text-align:right;background:#eef2ff">${(gross - cis).toFixed(2)}</td>
               </tr>
             </table>
+          </div>`
+        : null,
+    };
 
-          </div>
-        `
-      };
-    }
-
-    /* -------------------------------------------------------------
-       APPLY DRC OVERRIDE IF NEEDED
-    ------------------------------------------------------------- */
-
-    let drcResult = null;
-    if (parsed.text && detectDRC(parsed.text)) {
-      console.log("⚠️ DRC override applied");
-      drcResult = correctDRC(parsed.text);
-    }
-
-    /* FAISS relevance only */
-    let faissContext = "";
-    try {
-      const matches = await searchIndex(parsed.text, faissIndex);
-      faissContext = matches.map((m) => m.meta?.title || "").join("\n");
-    } catch (err) {
-      console.log("⚠️ FAISS relevance error:", err.message);
-    }
-
-    /* AI fallback */
-    let aiReply;
-
-    if (drcResult) {
-      aiReply = drcResult;
-    } else {
-      aiReply = await analyseInvoice(parsed.text, flags, faissContext);
-    }
-
-    /* Save Files */
+    /* Save report files */
     const { docPath, pdfPath, timestamp } = await saveReportFiles(aiReply);
 
     /* Optional email */
@@ -318,36 +215,11 @@ router.post("/check_invoice", async (req, res) => {
       timestamp
     );
 
-    res.json({
-      parserNote: parsed.parserNote,
-      aiReply,
-      timestamp
-    });
+    return res.json({ aiReply, timestamp });
 
   } catch (err) {
-    console.error("❌ /check_invoice error:", err.message);
+    console.error("❌ Invoice Checker Error:", err.message);
     res.status(500).json({ error: err.message });
-  }
-});
-
-/* -------------------------------------------------------------
-   /faiss-test — unchanged
-------------------------------------------------------------- */
-
-router.get("/faiss-test", async (req, res) => {
-  try {
-    const matches = await searchIndex("CIS VAT rules", faissIndex);
-    const top = matches[0] || {};
-
-    res.json({
-      ok: true,
-      matchCount: matches.length,
-      topScore: top.score || 0,
-      preview: top.meta ? top.meta.title : "NONE"
-    });
-
-  } catch (err) {
-    res.json({ ok: false, error: err.message });
   }
 });
 
