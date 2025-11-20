@@ -1,6 +1,6 @@
 /**
- * AIVS Invoice Compliance Checker · Express Route
- * ISO Timestamp: 2025-11-14T16:30:00Z
+ * AIVS CIS/VAT Invoice Checker – Clean Multi-Line Version
+ * Stable, safe, table-only parsing
  * Author: AIVS Software Limited
  */
 
@@ -9,244 +9,240 @@ import fileUpload from "express-fileupload";
 import fs from "fs";
 import { OpenAI } from "openai";
 
-import { parseInvoice, analyseInvoice } from "../invoice_tools.js";
+import { parseInvoice } from "../invoice_tools.js";
 import { saveReportFiles, sendReportEmail } from "../../server.js";
 
 const router = express.Router();
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_APIKEY || process.env.OPENAI_API_KEY,
-});
+const openai = new OpenAI({ apiKey: process.env.OPENAI_APIKEY });
 
 /* -------------------------------------------------------------
-   FAISS (Relevance Only — No Text Required)
+   HELPERS
 ------------------------------------------------------------- */
 
-const INDEX_PATH = "/mnt/data/vector.index";
-const META_PATH  = "/mnt/data/chunks_metadata.final.jsonl";
-const LIMIT      = 10000;
-
-let metadata = [];
-let faissIndex = [];
-
-/* Load metadata */
-try {
-  console.log("🔍 Loading FAISS metadata...");
-  metadata = fs
-    .readFileSync(META_PATH, "utf8")
-    .trim()
-    .split("\n")
-    .slice(0, LIMIT)
-    .map((l) => JSON.parse(l));
-
-  console.log("✅ Loaded metadata lines:", metadata.length);
-} catch (err) {
-  console.error("❌ Metadata load error:", err.message);
-  metadata = [];
+// Normalise numbers including negatives & bracketed
+function toNumber(v) {
+  if (!v) return 0;
+  return parseFloat(v.replace(/[(),]/g, "").replace(/,/g, ""));
 }
 
-/* Load vector.index */
-async function loadIndex(limit = LIMIT) {
-  console.log(`📦 Loading vector.index (limit ${limit})`);
+// Identify table block ONLY (ignore header, address, VAT number, phone)
+function extractTable(text) {
+  const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
 
-  const fd = await fs.promises.open(INDEX_PATH, "r");
-  const stream = fd.createReadStream({ encoding: "utf8" });
+  // Find first line that looks like a real table header
+  const headerIndex = lines.findIndex(l =>
+    /(description|quantity|qty).*?(unit|price|amount|vat)/i.test(l)
+  );
 
-  let buffer = "";
-  const vectors = [];
-  let processed = 0;
+  if (headerIndex === -1) return [];
 
-  for await (const chunk of stream) {
-    buffer += chunk;
-    const parts = buffer.split("},");
-    buffer = parts.pop();
-
-    for (const p of parts) {
-      if (!p.includes('"embedding"')) continue;
-
-      try {
-        const obj = JSON.parse(p.endsWith("}") ? p : p + "}");
-        const meta = metadata[processed] || {};
-
-        vectors.push({ ...obj, meta });
-        processed++;
-
-        if (vectors.length >= limit) {
-          console.log("🛑 Vector limit reached");
-          await fd.close();
-          return vectors;
-        }
-      } catch {}
-    }
-  }
-
-  await fd.close();
-  console.log(`✅ Loaded ${vectors.length} vectors`);
-  return vectors;
+  // Return only lines AFTER the header
+  return lines.slice(headerIndex + 1);
 }
 
-/* Preload FAISS */
-(async () => {
-  try {
-    faissIndex = await loadIndex(LIMIT);
-    console.log(`🟢 FAISS READY (${faissIndex.length} vectors)`);
-  } catch (err) {
-    console.error("❌ FAISS preload failed:", err.message);
-  }
-})();
-
-/* Dot product relevance */
-function dotProduct(a, b) {
-  if (!a || !b || a.length !== b.length) return 0;
-  return a.reduce((sum, val, i) => sum + val * b[i], 0);
+// Identify labour for CIS
+function isLabour(desc) {
+  const s = desc.toLowerCase();
+  return (
+    s.includes("labour") ||
+    s.includes("day") ||
+    s.includes("hrs") ||
+    s.includes("hr") ||
+    s.includes("joinery") ||
+    s.includes("installation") ||
+    s.includes("carpentry")
+  );
 }
 
-/* Semantic search */
-async function searchIndex(query, index) {
-  if (!query || query.length < 3) return [];
-
-  const emb = await openai.embeddings.create({
-    model: "text-embedding-3-small",
-    input: [query],
-  });
-
-  const q = emb.data[0].embedding;
-
-  const scored = index.map((v) => ({
-    ...v,
-    score: dotProduct(q, v.embedding),
-  }));
-
-  return scored.sort((a, b) => b.score - a.score).slice(0, 10);
+// Structural validation
+function validStructure(subtotal, vat, gross) {
+  if (subtotal <= 0) return false;
+  if (gross <= 0) return false;
+  if (gross < subtotal) return false;
+  return true;
 }
 
 /* -------------------------------------------------------------
    MAIN ROUTE
 ------------------------------------------------------------- */
 
-router.use(
-  fileUpload({
-    parseNested: true,
-    useTempFiles: false,
-    preserveExtension: true,
-  })
-);
+router.use(fileUpload({ parseNested: true }));
 
 router.post("/check_invoice", async (req, res) => {
   try {
-    console.log("🟢 /check_invoice");
-
     if (!req.files?.file) throw new Error("No file uploaded");
+
     const file = req.files.file;
-
-    const flags = {
-      vatCategory: req.body.vatCategory,
-      endUserConfirmed: req.body.endUserConfirmed,
-      cisRate: req.body.cisRate
-    };
-
     const parsed = await parseInvoice(file.data);
-    console.log("📄 PARSED TEXT:", parsed.text);
+    const raw = parsed.text || "";
 
-    /* -------------------------------------------------------------
-       DRC AUTO-CORRECTION + LINE EXTRACTION (ONLY FUNCTIONS CHANGED)
-    ------------------------------------------------------------- */
-
-    function detectDRC(text) {
-      if (!text) return false;
-      const t = text.toLowerCase();
-
-      return (
-        (t.includes("labour") ||
-         t.includes("carpentry") ||
-         t.includes("construction") ||
-         t.includes("builder") ||
-         t.includes("joinery"))
-        &&
-        t.includes("vat")
-        &&
-        t.includes("20")
-      );
-    }
-
-    /* ---------- UPDATED extractLineItem() ---------- */
-    function extractLineItem(text) {
-      const t = text.replace(/\s+/g, " ").trim();
-
-      // quantity pattern: "4 days", "4 day"
-      const qtyMatch = t.match(/(\d+)\s*(day|days|hr|hrs|hour|hours)/i);
-      const qty = qtyMatch ? parseInt(qtyMatch[1]) : 1;
-
-      const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
-      let description = "Invoice item";
-
-      lines.forEach((line, i) => {
-        if (qtyMatch && line.includes(qtyMatch[1])) {
-          if (lines[i+1]) description = lines[i+1].trim();
+    /* STEP 1 — Extract invoice table only */
+    const table = extractTable(raw);
+    if (!table.length) {
+      return res.json({
+        aiReply: {
+          vat_check: "Unable to determine VAT.",
+          cis_check: "Unable to determine CIS.",
+          required_wording: "N/A",
+          summary: "Invoice has no identifiable table. Upload a clearer PDF.",
+          corrected_invoice: null
         }
       });
-
-      return { description, qty };
     }
 
-    /* ---------- UPDATED correctDRC() ---------- */
-    function correctDRC(text) {
+    /* STEP 2 — Parse each table line */
+    const items = [];
 
-      const item = extractLineItem(text);
+    for (const line of table) {
+      // Stop when the table ends (encounters Subtotal)
+      if (/subtotal/i.test(line)) break;
 
-      // Extract subtotal from TOTAL NET £1,200
-      let net = 0;
-      const netMatch = text.match(/TOTAL NET\s*£\s*([\d,]+)/i);
-      if (netMatch) net = parseFloat(netMatch[1].replace(/,/g, ""));
+      const parts = line.split(/\s+/);
 
-      const unit = item.qty > 0 ? net / item.qty : net;
+      // Extract description text (anything before numbers)
+      const match = line.match(/^(.*?)(\d[\d.,()]*\s+\(?[\d.,()]+\)?)/);
+      const description = match ? match[1].trim() : line;
 
-      const cis = +(net * 0.20).toFixed(2);
-      const totalDue = +(net - cis).toFixed(2);
+      // Extract quantity
+      const qtyMatch = line.match(/(\d+(\.\d+)?)/);
+      if (!qtyMatch) continue;
+      const qty = parseFloat(qtyMatch[1]);
 
-      return {
-        vat_check: "VAT removed – Domestic Reverse Charge applies.",
-        cis_check: `CIS deduction at 20% applied: £${cis}`,
-        required_wording:
-          "Reverse Charge: Customer must account for VAT to HMRC (VAT Act 1994 Section 55A).",
-        summary: `Corrected: Net £${net}, CIS £${cis}, Total Due £${totalDue}`,
+      // Extract unit price
+      const unitMatch = line.match(/(-?\(?\d[\d,]*\.?\d*\)?)/g);
+      if (!unitMatch || unitMatch.length < 2) continue;
+      const unit = toNumber(unitMatch[1]);
 
-        corrected_invoice: `
-          <div style="font-family:Arial, sans-serif; font-size:14px;">
+      // VAT rate
+      const vatMatch = line.match(/(\d+)%|no vat|0%/i);
+      const vatRate = vatMatch
+        ? vatMatch[1]
+          ? parseFloat(vatMatch[1])
+          : 0
+        : 20; // default
 
-            <h3 style="color:#4e65ac; margin-bottom:10px;">Corrected Invoice</h3>
+      // VAT amount if present
+      let vatAmount = 0;
+      const vatAmtMatch = line.match(/\(?\d[\d,]*\.\d+\)?$/);
+      if (vatAmtMatch) vatAmount = toNumber(vatAmtMatch[0]);
 
-            <table style="width:100%; border-collapse:collapse; margin-bottom:12px;">
-              <tr>
-                <th style="border:1px solid #ccc; background:#eef3ff; padding:8px; text-align:left;">Description</th>
-                <th style="border:1px solid #ccc; background:#eef3ff; padding:8px; text-align:right;">Qty</th>
-                <th style="border:1px solid #ccc; background:#eef3ff; padding:8px; text-align:right;">Unit (£)</th>
-                <th style="border:1px solid #ccc; background:#eef3ff; padding:8px; text-align:right;">Line Total (£)</th>
-              </tr>
+      const lineTotal = qty * unit;
 
-              <tr>
-                <td style="border:1px solid #ccc; padding:8px;">${item.description}</td>
-                <td style="border:1px solid #ccc; padding:8px; text-align:right;">${item.qty}</td>
-                <td style="border:1px solid #ccc; padding:8px; text-align:right;">${unit.toFixed(2)}</td>
-                <td style="border:1px solid #ccc; padding:8px; text-align:right;">${net.toFixed(2)}</td>
-              </tr>
+      items.push({
+        description,
+        qty,
+        unit,
+        vatRate,
+        vatAmount,
+        lineTotal
+      });
 
-              <tr>
-                <td colspan="3" style="border:1px solid #ccc; padding:8px; text-align:right; font-weight:bold;">VAT (Reverse Charge)</td>
-                <td style="border:1px solid #ccc; padding:8px; text-align:right;">£0.00</td>
-              </tr>
+      if (items.length >= 10) break;
+    }
 
-              <tr>
-                <td colspan="3" style="border:1px solid #ccc; padding:8px; text-align:right;">CIS (20%)</td>
-                <td style="border:1px solid #ccc; padding:8px; text-align:right;">-£${cis.toFixed(2)}</td>
-              </tr>
+    /* STEP 3 — Compute totals */
+    let subtotal = 0;
+    let vatFromLines = 0;
 
-              <tr>
-                <td colspan="3" style="border:1px solid #ccc; padding:8px; font-weight:bold; background:#dfe7ff; text-align:right;">Total Due</td>
-                <td style="border:1px solid #ccc; padding:8px; font-weight:bold; background:#dfe7ff; text-align:right;">£${totalDue.toFixed(2)}</td>
-              </tr>
-            </table>
+    for (const i of items) {
+      subtotal += i.lineTotal;
+      vatFromLines += i.vatAmount || (i.lineTotal * (i.vatRate / 100));
+    }
 
-          </div>
-        `
-      };
+    const gross = subtotal + vatFromLines;
+
+    /* STEP 4 — CIS logic */
+    let labourBase = 0;
+    for (const i of items) {
+      if (isLabour(i.description)) labourBase += i.lineTotal;
+    }
+    const cis = +(labourBase * 0.20).toFixed(2);
+
+    /* STEP 5 — DRC logic */
+    const drc = raw.toLowerCase().includes("reverse") ||
+                raw.toLowerCase().includes("drc");
+
+    /* STEP 6 — Validation */
+    const safe = validStructure(subtotal, vatFromLines, gross);
+
+    /* ALWAYS RETURN SUMMARY */
+    const reply = {
+      vat_check: drc
+        ? "VAT removed – Domestic Reverse Charge applies."
+        : "VAT reviewed.",
+      cis_check:
+        labourBase > 0
+          ? `CIS deduction at 20% applied: £${cis}`
+          : "CIS does not apply to this invoice.",
+      required_wording: drc
+        ? "Reverse Charge: Customer must account for VAT to HMRC (VAT Act 1994 Section 55A)."
+        : "Standard VAT rules apply.",
+      summary: safe
+        ? `Corrected: Net £${subtotal.toFixed(2)}, CIS £${cis.toFixed(
+            2
+          )}, Total Due £${(gross - cis).toFixed(2)}`
+        : "Invoice reviewed. Data incomplete — no corrected invoice preview generated.",
+      corrected_invoice: null
+    };
+
+    /* IF SAFE → RETURN PREVIEW */
+    if (safe) {
+      reply.corrected_invoice = `
+      <div style="font-family:Arial; font-size:14px;">
+        <h3 style="color:#4e65ac">Corrected Invoice</h3>
+        <table style="width:100%; border-collapse:collapse;">
+          <tr>
+            <th>Description</th>
+            <th>Qty</th>
+            <th>Unit (£)</th>
+            <th>VAT Rate</th>
+            <th>VAT (£)</th>
+            <th>Line Total (£)</th>
+          </tr>
+          ${items
+            .map(
+              (i) => `
+            <tr>
+              <td>${i.description}</td>
+              <td style="text-align:right">${i.qty}</td>
+              <td style="text-align:right">${i.unit.toFixed(2)}</td>
+              <td style="text-align:right">${i.vatRate}%</td>
+              <td style="text-align:right">${i.vatAmount.toFixed(2)}</td>
+              <td style="text-align:right">${i.lineTotal.toFixed(2)}</td>
+            </tr>`
+            )
+            .join("")}
+          <tr><td colspan="5" style="text-align:right"><b>Subtotal</b></td>
+              <td style="text-align:right"><b>${subtotal.toFixed(2)}</b></td></tr>
+          <tr><td colspan="5" style="text-align:right"><b>VAT</b></td>
+              <td style="text-align:right">${vatFromLines.toFixed(2)}</td></tr>
+          <tr><td colspan="5" style="text-align:right"><b>CIS (20%)</b></td>
+              <td style="text-align:right">-${cis.toFixed(2)}</td></tr>
+          <tr><td colspan="5" style="text-align:right;background:#eef2ff"><b>Total Due</b></td>
+              <td style="text-align:right;background:#eef2ff"><b>${(gross - cis).toFixed(2)}</b></td></tr>
+        </table>
+      </div>
+      `;
+    }
+
+    /* SAVE OUTPUT */
+    const { docPath, pdfPath, timestamp } = await saveReportFiles(reply);
+
+    await sendReportEmail(
+      req.body.userEmail,
+      [req.body.emailCopy1, req.body.emailCopy2].filter(Boolean),
+      reply,
+      docPath,
+      pdfPath,
+      timestamp
+    );
+
+    return res.json({ aiReply: reply });
+
+  } catch (err) {
+    console.error("❌ Checker Error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+export default router;
