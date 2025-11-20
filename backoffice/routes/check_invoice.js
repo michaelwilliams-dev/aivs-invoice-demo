@@ -149,7 +149,19 @@ router.post("/check_invoice", async (req, res) => {
     console.log("📄 PARSED TEXT:", parsed.text);
 
     /* -------------------------------------------------------------
-       DRC AUTO-CORRECTION (WORKS FOR BOTH INVOICE TYPES)
+       STRUCTURAL VALIDATION (AGREED SAFETY ADDITION)
+    ------------------------------------------------------------- */
+
+    function isInvoiceStructurallyValid(net, gross, vat, cis) {
+      if (net <= 0 && gross <= 0) return false;
+      if (vat < 0) return false;
+      if (cis < 0) return false;
+      if (net > 0 && gross > 0 && gross < net) return false;
+      return true;
+    }
+
+    /* -------------------------------------------------------------
+       DRC AUTO-CORRECTION LOGIC (EXISTING)
     ------------------------------------------------------------- */
 
     function detectDRC(text) {
@@ -185,7 +197,9 @@ router.post("/check_invoice", async (req, res) => {
       return { description, qty };
     }
 
-    /* ---------- UNIVERSAL correctDRC() — WORKS FOR ALL FORMATS ---------- */
+    /* -------------------------------------------------------------
+       UNIVERSAL correctDRC() WITH VALIDATION APPLIED
+    ------------------------------------------------------------- */
 
     function correctDRC(text) {
       const item = extractLineItem(text);
@@ -219,22 +233,40 @@ router.post("/check_invoice", async (req, res) => {
       let cis =
         extract(/LESS\s*CIS[^0-9]*([\d,.]+)/i) ||
         extract(/CIS\s*DEDUCTION[^0-9]*([\d,.]+)/i);
-      
+
       if (cis == null) {
-        // DEFAULT: apply CIS 20% when invoice has no CIS line
         cis = +(net * 0.20).toFixed(2);
       }
 
-      if (net === 0 && gross > 0 && vat >= 0) net = +(gross - vat).toFixed(2);
+      if (net === 0 && gross > 0 && vat >= 0) {
+        net = +(gross - vat).toFixed(2);
+      }
 
       const unit = item.qty > 0 ? net / item.qty : net;
       const totalDue = gross > 0 ? gross - cis : net - cis;
 
-      return {
-        vat_check: "VAT removed – Domestic Reverse Charge applies.",
+      /* ---------------- SAFE RETURN LOGIC ---------------- */
+
+      const baseSummary = {
+        vat_check: "VAT treatment reviewed.",
         cis_check: `CIS deduction at 20% applied: £${cis}`,
         required_wording:
           "Reverse Charge: Customer must account for VAT to HMRC (VAT Act 1994 Section 55A).",
+      };
+
+      /* ❗ If invoice is NOT structurally valid → DO NOT produce corrected invoice */
+      if (!isInvoiceStructurallyValid(net, gross, vat, cis)) {
+        return {
+          ...baseSummary,
+          summary:
+            "Invoice reviewed, but insufficient or inconsistent data was detected. A corrected invoice preview cannot be generated. Please upload a clearer or complete invoice.",
+          corrected_invoice: null,
+        };
+      }
+
+      /* ✔ If valid → produce full corrected invoice preview */
+      return {
+        ...baseSummary,
         summary: `Corrected: Net £${net}, CIS £${cis}, Total Due £${totalDue}`,
         corrected_invoice: `
           <div style="font-family:Arial, sans-serif; font-size:14px;">
@@ -270,8 +302,8 @@ router.post("/check_invoice", async (req, res) => {
       };
     }
 
-    /* ---------------- END PART 1 ---------------- */
-      /* Apply DRC override if needed */
+    /* ------------------------------------------------------------- */
+
     let drcResult = null;
     if (parsed.text && detectDRC(parsed.text)) {
       console.log("⚠️ DRC override applied");
@@ -298,7 +330,6 @@ router.post("/check_invoice", async (req, res) => {
     /* Generate report */
     const { docPath, pdfPath, timestamp } = await saveReportFiles(aiReply);
 
-    /* Optional email */
     await sendReportEmail(
       req.body.userEmail,
       [req.body.emailCopy1, req.body.emailCopy2].filter(Boolean),
@@ -308,7 +339,6 @@ router.post("/check_invoice", async (req, res) => {
       timestamp
     );
 
-    /* Success Response */
     res.json({
       parserNote: parsed.parserNote,
       aiReply,
@@ -319,7 +349,7 @@ router.post("/check_invoice", async (req, res) => {
     console.error("❌ /check_invoice error:", err.message);
     res.status(500).json({ error: err.message });
   }
-}); // ← closes router.post("/check_invoice")
+});
 
 /* -------------------------------------------------------------
    /faiss-test — unchanged
