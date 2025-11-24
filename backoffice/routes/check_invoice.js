@@ -1,9 +1,9 @@
-// ISO Timestamp: 2025-11-24T18:10:00Z
+// ISO Timestamp: 2025-11-24T18:40:00Z
 /**
  * check_invoice.js – AIVS CIS/VAT Compliance Route
- * Pipeline:
+ * Full pipeline:
  *   Dropzone → Docling → Compliance Engine → HTML Preview
- *   → PDF/DOCX → Automatic Email (if provided)
+ *   → PDF/DOCX → Auto-Email (if provided) → Auto-Delete
  */
 
 import express from "express";
@@ -39,11 +39,11 @@ if (!fs.existsSync(generatedDir)) fs.mkdirSync(generatedDir, { recursive: true }
 ----------------------------------------------------------- */
 const upload = multer({
   dest: uploadDir,
-  limits: { fileSize: 25 * 1024 * 1024 } // 25MB
+  limits: { fileSize: 25 * 1024 * 1024 } // 25 MB
 });
 
 /* -----------------------------------------------------------
-   STANDARD FOOTER (PDF & DOCX ONLY)
+   FOOTER (for PDF & DOCX only)
 ----------------------------------------------------------- */
 const FOOTER_TEXT = `
 © AIVS Software Limited 2025 · All rights reserved.
@@ -57,49 +57,40 @@ Prepared for internal management review only · Not for external distribution.
 ----------------------------------------------------------- */
 async function generatePDF(aiReply, timestamp) {
   const pdfDoc = await PDFDocument.create();
-  const page = pdfDoc.addPage([595, 842]); // A4 portrait
+  const page = pdfDoc.addPage([595, 842]);
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
   let y = 800;
-  const lineHeight = 18;
-
   const write = (text, size = 12) => {
     page.drawText(text, { x: 40, y, size, font });
-    y -= lineHeight;
+    y -= 18;
   };
 
-  // Title
   write("AIVS CIS/VAT Compliance Report", 18);
   y -= 6;
   write(`Generated: ${timestamp}`);
   y -= 20;
 
-  // VAT Section
   write("VAT Assessment", 14);
   write(`VAT Check: ${aiReply.vat_check}`);
   write("");
   y -= 10;
 
-  // CIS Section
   write("CIS Assessment", 14);
   write(`CIS Check: ${aiReply.cis_check}`);
   write("");
   y -= 10;
 
-  // Wording
   write("Required Invoice Wording", 14);
   write(aiReply.required_wording || "None detected");
   write("");
   y -= 10;
 
-  // Summary
   write("Summary Overview", 14);
-  aiReply.summary.split("\n").forEach((line) => write(line.trim()));
-  write("");
+  aiReply.summary.split("\n").forEach(line => write(line.trim()));
   y -= 20;
 
-  // Footer
-  FOOTER_TEXT.split("\n").forEach((line) => write(line.trim()));
+  FOOTER_TEXT.split("\n").forEach(line => write(line.trim()));
 
   return await pdfDoc.save();
 }
@@ -110,35 +101,28 @@ async function generatePDF(aiReply, timestamp) {
 async function generateDOCX(aiReply, timestamp) {
   const children = [
     new Paragraph({
-      children: [
-        new TextRun({ text: "AIVS CIS/VAT Compliance Report", bold: true, size: 32 })
-      ],
+      children: [new TextRun({ text: "AIVS CIS/VAT Compliance Report", bold: true, size: 32 })],
       spacing: { after: 200 }
     }),
-
     new Paragraph({
       children: [new TextRun({ text: `Generated: ${timestamp}`, size: 22 })],
       spacing: { after: 300 }
     }),
-
     new Paragraph({
       children: [new TextRun({ text: "VAT Assessment", bold: true, size: 26 })],
       spacing: { after: 200 }
     }),
     new Paragraph({ text: `VAT Check: ${aiReply.vat_check}`, spacing: { after: 200 } }),
-
     new Paragraph({
       children: [new TextRun({ text: "CIS Assessment", bold: true, size: 26 })],
       spacing: { after: 200 }
     }),
     new Paragraph({ text: `CIS Check: ${aiReply.cis_check}`, spacing: { after: 200 } }),
-
     new Paragraph({
       children: [new TextRun({ text: "Required Invoice Wording", bold: true, size: 26 })],
       spacing: { after: 200 }
     }),
     new Paragraph({ text: aiReply.required_wording || "None detected", spacing: { after: 300 } }),
-
     new Paragraph({
       children: [new TextRun({ text: "Summary Overview", bold: true, size: 26 })],
       spacing: { after: 200 }
@@ -146,7 +130,6 @@ async function generateDOCX(aiReply, timestamp) {
     ...aiReply.summary.split("\n").map(
       (line) => new Paragraph({ text: line.trim(), spacing: { after: 100 } })
     ),
-
     new Paragraph({
       children: [
         new TextRun({
@@ -163,7 +146,7 @@ async function generateDOCX(aiReply, timestamp) {
 }
 
 /* -----------------------------------------------------------
-   MAIN ROUTE: /check_invoice
+   MAIN ROUTE – /check_invoice
 ----------------------------------------------------------- */
 router.post("/check_invoice", upload.single("file"), async (req, res) => {
   const timestamp = new Date().toISOString();
@@ -176,9 +159,6 @@ router.post("/check_invoice", upload.single("file"), async (req, res) => {
       });
     }
 
-    /* ----------------------------------------------------------
-       Read frontend fields (safe defaults if missing)
-    ---------------------------------------------------------- */
     const {
       vatCategory = "",
       endUserConfirmed = "",
@@ -190,14 +170,14 @@ router.post("/check_invoice", upload.single("file"), async (req, res) => {
     } = req.body;
 
     /* ----------------------------------------------------------
-       1. Docling Extraction
+       1. Docling extraction
     ---------------------------------------------------------- */
     const docResult = await extractInvoice(req.file.path);
 
     if (docResult.status !== "ok") {
       return res.json({
         success: false,
-        html: `<div style="color:#c0392b;font-weight:600;">
+        html: `<div style="color:#c0392b;">
                  ❌ Unable to read PDF<br>
                  ${docResult.error || docResult.message}
                </div>`
@@ -205,12 +185,12 @@ router.post("/check_invoice", upload.single("file"), async (req, res) => {
     }
 
     /* ----------------------------------------------------------
-       2. Compliance Engine
+       2. Run compliance engine
     ---------------------------------------------------------- */
     const aiReply = runComplianceChecks(docResult.extracted);
 
     /* ----------------------------------------------------------
-       3. HTML PREVIEW (Shown on screen ONLY)
+       3. Screen-only HTML preview
     ---------------------------------------------------------- */
     const html = `
       <div style="padding:12px;">
@@ -222,13 +202,9 @@ router.post("/check_invoice", upload.single("file"), async (req, res) => {
         <p><strong>CIS Check:</strong><br>${aiReply.cis_check}</p>
         <p><strong>Required Wording:</strong><br>${aiReply.required_wording}</p>
 
-        <p><strong>Summary:</strong><br>${
-          aiReply.summary.replace(/\n/g, "<br>")
-        }</p>
+        <p><strong>Summary:</strong><br>${aiReply.summary.replace(/\n/g, "<br>")}</p>
 
-        <h4 style="color:#4e65ac;margin-top:20px;">
-          Draft Corrected Invoice (Screen Only)
-        </h4>
+        <h4 style="color:#4e65ac;margin-top:20px;">Draft Corrected Invoice (Screen Only)</h4>
         <div style="border:1px solid #ddd;padding:10px;background:#fafafa;">
           ${aiReply.corrected_invoice}
         </div>
@@ -240,43 +216,62 @@ router.post("/check_invoice", upload.single("file"), async (req, res) => {
     `;
 
     /* ----------------------------------------------------------
-       4. Generate PDF + DOCX (no invoice preview included)
+       4. Generate PDF + DOCX (no preview inside)
     ---------------------------------------------------------- */
-    const docBuffer = await generateDOCX(aiReply, timestamp);
-    const pdfBuffer = await generatePDF(aiReply, timestamp);
+    const docBuf = await generateDOCX(aiReply, timestamp);
+    const pdfBuf = await generatePDF(aiReply, timestamp);
 
     const safeTime = timestamp.replace(/[:]/g, "-");
     const docPath = path.join(generatedDir, `report_${safeTime}.docx`);
     const pdfPath = path.join(generatedDir, `report_${safeTime}.pdf`);
 
-    fs.writeFileSync(docPath, docBuffer);
-    fs.writeFileSync(pdfPath, pdfBuffer);
+    fs.writeFileSync(docPath, docBuf);
+    fs.writeFileSync(pdfPath, pdfBuf);
 
     /* ----------------------------------------------------------
-       5. Automatic email dispatch
+       5. Auto-send email IF any email exists
+           AND auto-delete files immediately afterward
     ---------------------------------------------------------- */
+    let emailSent = false;
+
     if (userEmail || emailCopy1 || emailCopy2) {
-      await sendReportEmail(
-        userEmail,
-        [emailCopy1, emailCopy2],
-        docPath,
-        pdfPath,
-        timestamp
-      );
+      try {
+        await sendReportEmail(
+          userEmail,
+          [emailCopy1, emailCopy2],
+          docPath,
+          pdfPath,
+          timestamp
+        );
+        emailSent = true;
+      } catch (emailErr) {
+        console.error("❌ Email failed:", emailErr.message);
+      }
+    }
+
+    // Auto-delete generated files (strict compliance)
+    try {
+      if (fs.existsSync(docPath)) fs.unlinkSync(docPath);
+      if (fs.existsSync(pdfPath)) fs.unlinkSync(pdfPath);
+    } catch (cleanupErr) {
+      console.error("⚠️ Cleanup error:", cleanupErr.message);
     }
 
     /* ----------------------------------------------------------
-       6. Return HTML to Frontend
+       6. Return HTML preview to frontend
     ---------------------------------------------------------- */
-    return res.json({ success: true, html, timestamp });
+    return res.json({
+      success: true,
+      html,
+      timestamp,
+      emailSent
+    });
 
   } catch (err) {
-    console.error("❌ check_invoice.js ERROR:", err);
+    console.error("❌ /check_invoice ERROR:", err);
     return res.json({
       success: false,
-      html: `<div style="color:#c0392b;">
-              ❌ Server error:<br>${err.message}
-            </div>`
+      html: `<div style="color:#c0392b;">❌ Server error:<br>${err.message}</div>`
     });
   }
 });
