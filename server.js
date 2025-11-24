@@ -1,7 +1,6 @@
-// ISO Timestamp: 2025-11-24T14:00:00Z
+// ISO Timestamp: 2025-11-24T20:00:00Z
 /**
- * AIVS Invoice Checker – Root Backend
- * Full system: Docling → CIS/VAT Checker → PDF/DOCX → Email
+ * AIVS Invoice Checker – Root Backend (pdfjs + compliance engine)
  */
 
 import express from "express";
@@ -11,17 +10,16 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 
-import { extractInvoice } from "./pdf_extract.js";
-import { runComplianceChecks } from "./compliance_engine.js";
+import { extractInvoice } from "./pdf_extract.js";              // UPDATED
+import { runComplianceChecks } from "./compliance_engine.js";   // UPDATED
 
 import Mailjet from "node-mailjet";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import { Document, Packer, Paragraph, TextRun } from "docx";
 
 /* -----------------------------------------------------------
-   PATH + APP INITIALISATION
+   PATH + APP SETUP
 ----------------------------------------------------------- */
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -36,12 +34,12 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, "public")));
 
 /* -----------------------------------------------------------
-   UPLOAD DIRECTORY
+   UPLOAD + GENERATED FILE DIRECTORIES
 ----------------------------------------------------------- */
 const uploadDir = path.join(__dirname, "uploads");
-if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
-
 const generatedDir = path.join(__dirname, "generated");
+
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 if (!fs.existsSync(generatedDir)) fs.mkdirSync(generatedDir, { recursive: true });
 
 const upload = multer({
@@ -50,7 +48,7 @@ const upload = multer({
 });
 
 /* -----------------------------------------------------------
-   FOOTER (we will refine wording later)
+   FOOTER TEXT
 ----------------------------------------------------------- */
 const FOOTER_TEXT = `
 © AIVS Software Limited 2025 · All rights reserved.
@@ -64,15 +62,15 @@ Prepared for internal management review only · Not for external distribution.
 ----------------------------------------------------------- */
 async function generatePDF(aiReply, timestamp) {
   const pdfDoc = await PDFDocument.create();
-  const page = pdfDoc.addPage([595, 842]); // A4
-
+  const page = pdfDoc.addPage([595, 842]);
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+
   let y = 800;
 
-  function write(line) {
-    page.drawText(line, { x: 40, y, size: 12, font });
+  const write = (text) => {
+    page.drawText(text, { x: 40, y, size: 12, font });
     y -= 18;
-  }
+  };
 
   write("AIVS CIS/VAT Compliance Report");
   write(`Generated: ${timestamp}`);
@@ -82,15 +80,14 @@ async function generatePDF(aiReply, timestamp) {
   write(`CIS Check: ${aiReply.cis_check}`);
   write(`Required Wording: ${aiReply.required_wording}`);
   write("");
+
   write("Summary:");
   aiReply.summary.split("\n").forEach((line) => write(line));
 
   write("");
-  write("------");
   write(FOOTER_TEXT);
 
-  const bytes = await pdfDoc.save();
-  return bytes;
+  return await pdfDoc.save();
 }
 
 /* -----------------------------------------------------------
@@ -98,28 +95,23 @@ async function generatePDF(aiReply, timestamp) {
 ----------------------------------------------------------- */
 async function generateDOCX(aiReply, timestamp) {
   const doc = new Document({
-    sections: [
-      {
-        properties: {},
-        children: [
-          new Paragraph({
-            children: [
-              new TextRun({ text: "AIVS CIS/VAT Compliance Report", bold: true, size: 28 })
-            ]
-          }),
-          new Paragraph({ text: `Generated: ${timestamp}` }),
-          new Paragraph(""),
-          new Paragraph({ text: `VAT Check: ${aiReply.vat_check}` }),
-          new Paragraph({ text: `CIS Check: ${aiReply.cis_check}` }),
-          new Paragraph({ text: `Required Wording: ${aiReply.required_wording}` }),
-          new Paragraph(""),
-          new Paragraph({ text: "Summary:" }),
-          ...aiReply.summary.split("\n").map((t) => new Paragraph(t)),
-          new Paragraph(""),
-          new Paragraph({ text: FOOTER_TEXT, size: 16 })
-        ]
-      }
-    ]
+    sections: [{
+      children: [
+        new Paragraph({
+          children: [new TextRun({ text: "AIVS CIS/VAT Compliance Report", bold: true, size: 28 })]
+        }),
+        new Paragraph({ text: `Generated: ${timestamp}` }),
+        new Paragraph(""),
+        new Paragraph({ text: `VAT Check: ${aiReply.vat_check}` }),
+        new Paragraph({ text: `CIS Check: ${aiReply.cis_check}` }),
+        new Paragraph({ text: `Required Wording: ${aiReply.required_wording}` }),
+        new Paragraph(""),
+        new Paragraph({ text: "Summary:" }),
+        ...aiReply.summary.split("\n").map((line) => new Paragraph(line)),
+        new Paragraph(""),
+        new Paragraph({ text: FOOTER_TEXT, size: 16 })
+      ]
+    }]
   });
 
   return await Packer.toBuffer(doc);
@@ -134,104 +126,91 @@ const mailjet = Mailjet.apiConnect(
 );
 
 export async function sendReportEmail(toEmail, ccList, docPath, pdfPath, timestamp) {
-  const attachments = [];
+  try {
+    const attachments = [];
 
-  if (fs.existsSync(docPath)) {
-    attachments.push({
-      ContentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      Filename: path.basename(docPath),
-      Base64Content: fs.readFileSync(docPath, "base64")
-    });
-  }
-
-  if (fs.existsSync(pdfPath)) {
-    attachments.push({
-      ContentType: "application/pdf",
-      Filename: path.basename(pdfPath),
-      Base64Content: fs.readFileSync(pdfPath, "base64")
-    });
-  }
-
-  const recipients = [];
-  if (toEmail) recipients.push({ Email: toEmail });
-  ccList.forEach((email) => {
-    if (email && email.trim().length > 0) {
-      recipients.push({ Email: email.trim() });
+    if (fs.existsSync(docPath)) {
+      attachments.push({
+        ContentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        Filename: path.basename(docPath),
+        Base64Content: fs.readFileSync(docPath, "base64")
+      });
     }
-  });
 
-  await mailjet.post("send", { version: "v3.1" }).request({
-    Messages: [
-      {
-        From: {
-          Email: "noreply@securemaildrop.uk",
-          Name: "AIVS Compliance Checker"
-        },
+    if (fs.existsSync(pdfPath)) {
+      attachments.push({
+        ContentType: "application/pdf",
+        Filename: path.basename(pdfPath),
+        Base64Content: fs.readFileSync(pdfPath, "base64")
+      });
+    }
+
+    const recipients = [];
+    if (toEmail) recipients.push({ Email: toEmail });
+    ccList.forEach((e) => { if (e && e.trim()) recipients.push({ Email: e.trim() }); });
+
+    if (recipients.length === 0) return;
+
+    await mailjet.post("send", { version: "v3.1" }).request({
+      Messages: [{
+        From: { Email: "noreply@securemaildrop.uk", Name: "AIVS Compliance Checker" },
         To: recipients,
         Subject: "AIVS CIS/VAT Compliance Report",
-        TextPart: "Your CIS/VAT report is attached.",
-        HTMLPart: `<h3>AIVS CIS/VAT Compliance Report</h3>
-                   <p>Generated: ${timestamp}</p>
-                   <p>Your report is attached as PDF and DOCX.</p>`,
+        HTMLPart: `<h3>AIVS CIS/VAT Compliance Report</h3><p>Generated: ${timestamp}</p>`,
         Attachments: attachments
-      }
-    ]
-  });
+      }]
+    });
+
+  } catch (err) {
+    console.error("❌ Email sending error:", err.message);
+  }
 }
 
 /* -----------------------------------------------------------
-   MAIN ROUTE – Dropzone → Docling → Checker → Reports
+   MAIN ROUTE (pdfjs → compliance engine)
 ----------------------------------------------------------- */
 app.post("/check_invoice", upload.single("file"), async (req, res) => {
   try {
-    if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+    if (!req.file)
+      return res.status(400).json({ error: "No file uploaded" });
 
     const filePath = req.file.path;
     const timestamp = new Date().toISOString();
 
-    // Step 1: Docling Extraction
+    // Extract PDF text (pdfjs)
     const docResult = await extractInvoice(filePath);
-    if (docResult.status !== "ok") {
-      return res.status(500).json({
-        error: docResult.error || "Docling failed",
-        status: docResult.status
-      });
-    }
+    if (docResult.status !== "ok")
+      return res.json({ success: false, error: docResult.error });
 
-    // Step 2: CIS/VAT Checker
-    const aiReply = checkInvoice(docResult.extracted);
+    // Run VAT/CIS engine
+    const aiReply = runComplianceChecks(docResult.extracted.text);
 
-    // Step 3: Generate DOCX and PDF
+    // Generate DOCX & PDF
     const docBuffer = await generateDOCX(aiReply, timestamp);
     const pdfBuffer = await generatePDF(aiReply, timestamp);
 
-    const docName = `report_${timestamp}.docx`.replace(/[:]/g, "-");
-    const pdfName = `report_${timestamp}_raw.pdf`.replace(/[:]/g, "-");
-
-    const docPath = path.join(generatedDir, docName);
-    const pdfPath = path.join(generatedDir, pdfName);
+    const safeTime = timestamp.replace(/[:]/g, "-");
+    const docPath = path.join(generatedDir, `report_${safeTime}.docx`);
+    const pdfPath = path.join(generatedDir, `report_${safeTime}.pdf`);
 
     fs.writeFileSync(docPath, docBuffer);
     fs.writeFileSync(pdfPath, pdfBuffer);
 
-    // Step 4: Respond to UI (email is separate)
-    res.json({
+    return res.json({
       success: true,
-      parserNote: "Invoice parsed successfully.",
       aiReply,
       timestamp
     });
 
   } catch (err) {
     console.error("❌ /check_invoice ERROR:", err);
-    res.status(500).json({ error: "Server error during invoice process" });
+    return res.status(500).json({ error: err.message });
   }
 });
 
 /* -----------------------------------------------------------
-   LISTEN
+   START SERVER
 ----------------------------------------------------------- */
-
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`🚀 AIVS Root Invoice Checker running on port ${PORT}`);
