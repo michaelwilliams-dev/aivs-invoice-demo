@@ -1,90 +1,158 @@
 
-<!-- ISO Timestamp: 2025-11-24T20:20:00Z -->
+<!-- ISO Timestamp: 2025-11-24T20:25:00Z -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>AIVS CIS/VAT Invoice Checker</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="UTF-8" />
+<title>AIVS CIS/VAT Compliance Checker</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-  <style>
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
-      background: #f7f9fc;
-      margin: 0;
-      padding: 40px;
-      color: #222;
-    }
+<style>
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+    background: #f7f9fc;
+    margin: 0;
+    padding: 40px;
+    color: #222;
+  }
 
-    h1 {
-      text-align: center;
-      color: #4e65ac;
-      margin-bottom: 30px;
-      font-size: 28px;
-    }
+  h1 {
+    text-align: center;
+    color: #4e65ac;
+    margin-bottom: 30px;
+    font-size: 28px;
+  }
 
-    #upload-area {
-      width: 100%;
-      max-width: 600px;
-      margin: 0 auto;
-      padding: 25px;
-      background: #fff;
-      border-radius: 14px;
-      border: 2px dashed #4e65ac;
-      text-align: center;
-      cursor: pointer;
-      font-size: 16px;
-      color: #4e65ac;
-    }
+  label {
+    color: #4e65ac;
+    font-weight: 600;
+    display: block;
+    margin-top: 18px;
+  }
 
-    #results {
-      width: 100%;
-      max-width: 800px;
-      margin: 40px auto;
-      padding: 20px;
-      background: #fff;
-      border-radius: 14px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-      display: none;
-    }
+  select, input[type="email"] {
+    width: 350px;
+    padding: 8px;
+    border: 1px solid #4e65ac;
+    border-radius: 6px;
+    margin-top: 4px;
+    font-size: 14px;
+  }
 
-    .label {
-      color: #4e65ac;
-      font-weight: 600;
-      margin-top: 16px;
-      font-size: 18px;
-    }
-  </style>
+  #upload-box {
+    width: 100%;
+    max-width: 600px;
+    margin: 30px auto;
+    padding: 22px;
+    background: #fff;
+    border-radius: 14px;
+    border: 2px dashed #4e65ac;
+    text-align: center;
+    cursor: pointer;
+    color: #4e65ac;
+    font-size: 18px;
+  }
+
+  #results {
+    width: 100%;
+    max-width: 800px;
+    margin: 30px auto;
+    padding: 20px;
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    white-space: normal;
+    display: none;
+  }
+
+  .label {
+    color: #4e65ac;
+    font-weight: 700;
+    margin-top: 20px;
+    font-size: 18px;
+  }
+</style>
 </head>
 
 <body>
 
-  <h1>AIVS CIS/VAT Compliance Checker</h1>
+<h1>AIVS CIS/VAT Compliance Checker</h1>
 
-  <div id="upload-area" onclick="triggerFileSelect()">
-    📄 Click to upload invoice PDF<br>
-    <small style="color:#6a7ab5;">(PDF only – up to 25MB)</small>
-  </div>
+<div style="max-width:600px;margin:0 auto;">
 
-  <input type="file" id="fileInput" accept="application/pdf" style="display:none">
+  <label>Project type (VAT category):</label>
+  <select id="vatCategory">
+    <option value="standard-20">Standard 20%</option>
+    <option value="reduced-5">Reduced 5%</option>
+    <option value="zero-newbuild">Zero-rated (new build)</option>
+    <option value="no-vat">No VAT</option>
+  </select>
 
-  <div id="results"></div>
+  <label>End user/intermediary declaration on file?</label>
+  <select id="endUserConfirmed">
+    <option value="false">No</option>
+    <option value="true">Yes</option>
+  </select>
+
+  <label>Subcontractor CIS rate:</label>
+  <select id="cisRate">
+    <option value="20">20%</option>
+    <option value="30">30%</option>
+    <option value="0">Gross (0%)</option>
+  </select>
+
+  <label>Party role:</label>
+  <select id="partyRole">
+    <option value="supplier">Supplier</option>
+    <option value="customer">Customer</option>
+  </select>
+
+  <label>User Email (for report):</label>
+  <input type="email" id="userEmail" placeholder="Enter email">
+
+  <label>Copy to Manager (optional):</label>
+  <input type="email" id="emailCopy1" placeholder="manager@example.com">
+
+  <label>Copy to Compliance (optional):</label>
+  <input type="email" id="emailCopy2" placeholder="compliance@example.com">
+
+</div>
+
+<br>
+
+<div id="upload-box" onclick="triggerFileSelect()">
+  📄 Click to upload invoice PDF<br>
+  <small style="color:#6a7ab5;">(PDF only – up to 25MB)</small>
+</div>
+
+<input type="file" id="fileInput" accept="application/pdf" style="display:none">
+
+<div id="results"></div>
 
 <script>
 function triggerFileSelect() {
   document.getElementById("fileInput").click();
 }
 
-document.getElementById("fileInput").addEventListener("change", async function() {
+document.getElementById("fileInput").addEventListener("change", async function () {
   const file = this.files[0];
   if (!file) return;
 
   const resultsDiv = document.getElementById("results");
   resultsDiv.style.display = "block";
-  resultsDiv.innerHTML = "⏳ Uploading and processing your invoice…";
+  resultsDiv.innerHTML = "⏳ Processing your invoice…";
 
   const formData = new FormData();
   formData.append("file", file);
+
+  // Append all CIS/VAT/email fields
+  formData.append("vatCategory", document.getElementById("vatCategory").value);
+  formData.append("endUserConfirmed", document.getElementById("endUserConfirmed").value);
+  formData.append("cisRate", document.getElementById("cisRate").value);
+  formData.append("partyRole", document.getElementById("partyRole").value);
+  formData.append("userEmail", document.getElementById("userEmail").value);
+  formData.append("emailCopy1", document.getElementById("emailCopy1").value);
+  formData.append("emailCopy2", document.getElementById("emailCopy2").value);
 
   try {
     const response = await fetch("/check_invoice", {
