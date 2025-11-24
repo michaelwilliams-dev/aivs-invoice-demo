@@ -28,7 +28,6 @@
     "pdf-lib": "^1.17.1",
     "node-mailjet": "^6.0.0",
 
-    "@docling/document": "^0.10.0"
   },
 
   "engines": {
