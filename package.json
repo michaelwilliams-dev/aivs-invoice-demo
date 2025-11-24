@@ -1,11 +1,12 @@
 {
   "_aivs_header": {
     "title": "AIVS Invoice Compliance Checker · Package Definition",
-    "iso_timestamp": "2025-11-09T19:40:00Z",
+    "iso_timestamp": "2025-11-24T18:50:00Z",
     "author": "AIVS Software Limited",
     "brand_colour": "#4e65ac",
     "description": "Defines dependencies, runtime, and start commands for the AIVS stand-alone Invoice Compliance Checker microservice."
   },
+
   "name": "aivs_invoice_checker",
   "version": "1.0.0",
   "description": "AIVS stand-alone invoice compliance checker microservice (CIS + VAT DRC / zero-rated).",
@@ -13,30 +14,29 @@
   "main": "server.js",
   "author": "AIVS Software Limited",
   "license": "UNLICENSED",
+
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js"
   },
+
   "dependencies": {
     "cors": "^2.8.5",
     "express": "^4.19.2",
-    "express-fileupload": "^1.4.0",
+    "multer": "^1.4.5",
     "docx": "^8.0.0",
-    "pdfkit": "^0.15.0",
+    "pdf-lib": "^1.17.1",
     "node-mailjet": "^6.0.0",
 
-    "@docling/document-model": "^0.10.0",
-    "@docling/document-model/pdf": "^0.10.0",
-    "@docling/analysis": "^0.10.0",
-    "@docling/export-json": "^0.10.0",
-
-    "multer": "^1.4.5"
+    "@docling/document": "^0.10.0"
   },
+
   "engines": {
     "node": "20.x"
   },
+
   "aivs_metadata": {
-    "iso_timestamp": "2025-11-09T19:40:00Z",
+    "iso_timestamp": "2025-11-24T18:50:00Z",
     "brand_colour": "#4e65ac",
     "module": "Invoice Compliance Checker",
     "environment": "Render microservice",
