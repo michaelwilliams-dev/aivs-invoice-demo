@@ -75,4 +75,55 @@ export function runComplianceChecks(raw) {
 
       reverseCharge:
         text.includes("reverse charge") ||
-        text.includes("
+        text.includes("domestic reverse charge") ||
+        text.includes("vat act 1994") ||
+        text.includes("section 55a"),
+
+      domestic: text.includes("homeowner") || text.includes("domestic"),
+      commercial:
+        text.includes("limited") ||
+        text.includes("ltd") ||
+        text.includes("contractor") ||
+        text.includes("commercial")
+    };
+
+
+    /* ----------------------------------------------------------
+       2. VAT LOGIC
+    ---------------------------------------------------------- */
+
+    let vat_check = "";
+    let required_wording = "";
+    let vatSummary = "";
+
+    if (detected.reverseCharge) {
+      vat_check = "Reverse charge VAT wording detected.";
+      required_wording =
+        "Reverse charge applies: Customer to account for VAT to HMRC (VAT Act 1994 s55A).";
+      vatSummary = "Reverse charge explicitly indicated.";
+    } else if (money.vat > 0) {
+      vat_check = `Standard VAT charged: £${money.vat.toFixed(2)}`;
+      vatSummary = "Standard-rated VAT invoice.";
+    } else if (money.vat === 0) {
+      vat_check = "Zero-rated or unclear VAT treatment.";
+      vatSummary = "No VAT detected.";
+    } else {
+      vat_check = "Cannot confirm VAT treatment from the text.";
+      vatSummary = "VAT unclear.";
+    }
+
+
+    /* ----------------------------------------------------------
+       3. CIS LOGIC (HMRC rules)
+    ---------------------------------------------------------- */
+
+    let cis_check = "";
+
+    if (detected.hasLabour && !detected.hasMaterials) {
+      cis_check = "Labour-only supply: CIS normally applies.";
+    } else if (detected.hasLabour && detected.hasMaterials) {
+      cis_check = "Mixed supply: CIS applies to labour portion only.";
+    } else if (!detected.hasLabour && detected.hasMaterials) {
+      cis_check = "Materials-only supply: CIS must NOT apply.";
+    } else {
+      cis_check = "Unable to determine
