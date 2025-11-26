@@ -1,4 +1,3 @@
-
 <!-- ISO Timestamp: 2025-11-24T20:25:00Z -->
 <!DOCTYPE html>
 <html lang="en">
@@ -129,6 +128,16 @@
 
 <div id="results"></div>
 
+<!-- ⭐ NEW CLEAR BUTTON (ONLY CHANGE) -->
+<div style="text-align:center;margin-top:20px;">
+  <button id="clearBtn"
+    style="background:#4e65ac;color:#fff;padding:10px 16px;border:none;
+           border-radius:6px;font-size:16px;cursor:pointer;">
+    Clear Results
+  </button>
+</div>
+<!-- END CHANGE -->
+
 <script>
 function triggerFileSelect() {
   document.getElementById("fileInput").click();
@@ -193,6 +202,20 @@ document.getElementById("fileInput").addEventListener("change", async function (
     resultsDiv.innerHTML = "❌ Server error: " + err.message;
   }
 });
+
+
+// ⭐ CLEAR BUTTON LOGIC (ONLY CHANGE)
+document.getElementById("clearBtn").addEventListener("click", () => {
+  const resultsDiv = document.getElementById("results");
+  const fileInput = document.getElementById("fileInput");
+
+  resultsDiv.innerHTML = "";
+  resultsDiv.style.display = "none";
+  fileInput.value = "";
+  window.scrollTo(0, 0);
+});
+// END CHANGE
+
 </script>
 
 </body>
