@@ -34,6 +34,16 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, "public")));
 
 /* -----------------------------------------------------------
+   ⭐ FIX FOR 502 – SERVE FRONTEND ON GET "/" 
+----------------------------------------------------------- */
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
+});
+/* -----------------------------------------------------------
+   END FIX
+----------------------------------------------------------- */
+
+/* -----------------------------------------------------------
    UPLOAD + GENERATED FILE DIRECTORIES
 ----------------------------------------------------------- */
 const uploadDir = path.join(__dirname, "uploads");
@@ -167,7 +177,7 @@ export async function sendReportEmail(toEmail, ccList, docPath, pdfPath, timesta
 }
 
 /* -----------------------------------------------------------
-   MAIN ROUTE (pdfjs → compliance engine)
+   MAIN ROUTE
 ----------------------------------------------------------- */
 app.post("/check_invoice", upload.single("file"), async (req, res) => {
   try {
@@ -177,15 +187,12 @@ app.post("/check_invoice", upload.single("file"), async (req, res) => {
     const filePath = req.file.path;
     const timestamp = new Date().toISOString();
 
-    // Extract PDF text (pdfjs)
     const docResult = await extractInvoice(filePath);
     if (docResult.status !== "ok")
       return res.json({ success: false, error: docResult.error });
 
-    // Run VAT/CIS engine
     const aiReply = runComplianceChecks(docResult.extracted.text);
 
-    // Generate DOCX & PDF
     const docBuffer = await generateDOCX(aiReply, timestamp);
     const pdfBuffer = await generatePDF(aiReply, timestamp);
 
